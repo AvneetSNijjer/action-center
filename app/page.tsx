@@ -4,7 +4,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Inbox } from "lucide-react";
 import { INSIGHTS } from "@/lib/mock-data";
 import type { Insight, Severity } from "@/lib/types";
-import { StatsOverview, PacingHeroCard } from "@/components/stats-overview";
+import { StatsOverview } from "@/components/stats-overview";
+import { MorningBriefing } from "@/components/morning-briefing";
+import { StrategyIndicator } from "@/components/strategy-indicator";
 import { FiltersBar, type Filters } from "@/components/filters-bar";
 import { InsightCard } from "@/components/insight-card";
 import { InsightDetailPanel } from "@/components/insight-detail-panel";
@@ -95,19 +97,20 @@ export default function ActionCenterPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <h1 className="text-2xl font-semibold tracking-tight">Action Center</h1>
           <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-semibold ring-1 ring-emerald-200 dark:ring-emerald-900/50">
             LIVE
           </span>
+          <StrategyIndicator />
         </div>
         <p className="text-sm text-muted-foreground">
-          Prioritized insights and one-click actions for The Beacon Hotel — Downtown.
+          Good morning, Avneet. Here&apos;s what needs your attention at The Beacon Hotel — Downtown.
         </p>
       </div>
 
-      <PacingHeroCard revenueImpact={totalRevenueImpact} totalCount={insights.length} />
+      <MorningBriefing />
 
       <StatsOverview counts={counts} revenueImpact={totalRevenueImpact} />
 

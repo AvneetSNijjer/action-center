@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { SeverityIcon, severityLabel } from "@/components/severity-icon";
+import { WhyThisPrice } from "@/components/why-this-price";
 import type { Insight } from "@/lib/types";
 import { cn, formatCurrency, formatRelativeTime } from "@/lib/utils";
 
@@ -122,6 +123,8 @@ export function InsightDetailPanel({
                   </div>
                   <p className="text-sm leading-relaxed text-foreground">{insight.body}</p>
                 </div>
+
+                {insight.explainability && <WhyThisPrice insight={insight} />}
 
                 {insight.metrics.length > 0 && (
                   <div>

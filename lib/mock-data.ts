@@ -10,6 +10,40 @@ export const HOTELS = [
   { id: "h3", name: "The Wren — Midtown", location: "New York, NY", rooms: 312 },
 ];
 
+// ============================================================================
+// Morning Briefing — yesterday's KPIs + STLY + today's operations
+// Backed by: historical_occupancy_raw, reservations, financial_metrics_service,
+// revpar_forecast_history.
+// ============================================================================
+export const MORNING_BRIEFING = {
+  date: "Sunday · May 11, 2026",
+  yesterday: {
+    revpar: { value: 178, stly: 161 },
+    adr: { value: 248, stly: 235 },
+    occupancy: { value: 71.8, stly: 68.5 }, // percentage points
+    revenue: { value: 38804, stly: 35098 },
+    roomsSold: 157,
+  },
+  today: {
+    arrivals: 84,
+    departures: 71,
+    inHouse: 170,
+    pickupLast24h: 18,
+    pickupVsExpected: 12.3,
+    cancellationsLast24h: 4,
+  },
+  mtd: {
+    revpar: { value: 148, target: 166 },
+    occupancy: { value: 66.4, target: 71.0 },
+    adr: { value: 223, target: 234 },
+  },
+  topActions: [
+    "Marriott dropped Saturday rate — review your $342 King Deluxe price",
+    "Coldplay event May 30 — 41% inventory still unsold, suggested +$121 lift",
+    "Pickup +23% ahead for Memorial Day weekend — uplift opportunity",
+  ],
+};
+
 export const INSIGHTS: Insight[] = [
   {
     id: "i1",
@@ -41,6 +75,37 @@ export const INSIGHTS: Insight[] = [
         { name: "Westin", a: 305 },
       ],
       aLabel: "Saturday Rate ($)",
+    },
+    explainability: {
+      narrative:
+        "Engine recommended a $37 reduction (-10.8%) because Marriott — your #1 comparable — dropped $42 to put them $55 below you, and your Saturday DOW weight (1.4×) amplified the competitor signal. The recommendation was clamped by your floor price of $295.",
+      drivers: [
+        { label: "Competitor gap (Marriott -$42)", contribution: -28, direction: "down" },
+        { label: "Saturday DOW weight (1.4×)", contribution: -7, direction: "down" },
+        { label: "Pickup pacing (on track)", contribution: -2, direction: "down" },
+        { label: "Floor price clamp ($295)", contribution: 0, direction: "neutral" },
+      ],
+      calculation: {
+        basePrice: 342,
+        suggestedPrice: 305,
+        floorPrice: 295,
+        ceilingPrice: 450,
+        dowWeight: 1.4,
+        dynamicElasticity: -0.42,
+        occPush: -0.018,
+        pickPush: -0.005,
+        adjustmentFactor: -0.108,
+        daysUntilStay: 6,
+        currentOccupancy: 0.62,
+        expectedOccupancy: 0.64,
+      },
+      compSet: [
+        { name: "Your hotel", price: 342, gap: 0 },
+        { name: "Marriott", price: 287, gap: -55 },
+        { name: "Hilton", price: 295, gap: -47 },
+        { name: "Hyatt", price: 312, gap: -30 },
+        { name: "Westin", price: 305, gap: -37 },
+      ],
     },
     actions: [
       { id: "review", label: "Review pricing", primary: true },
@@ -79,6 +144,30 @@ export const INSIGHTS: Insight[] = [
       ],
       aLabel: "Current price",
       bLabel: "Suggested",
+    },
+    explainability: {
+      narrative:
+        "Engine recommended a +$121 uplift (+42%) for Fri May 30 because PredictHQ flagged a Local Rank 88 concert 1.4 km away with predicted regional accommodation spend of $1.2M. Friday DOW weight (1.3×) and your 41% unsold inventory reinforced the lift. Suggestion was clamped by your ceiling of $450.",
+      drivers: [
+        { label: "Event impact (Rank 88, 19.5k attendees)", contribution: 85, direction: "up" },
+        { label: "Friday DOW weight (1.3×)", contribution: 24, direction: "up" },
+        { label: "High unsold inventory (41%)", contribution: 18, direction: "up" },
+        { label: "Pickup pacing (neutral)", contribution: -6, direction: "neutral" },
+      ],
+      calculation: {
+        basePrice: 289,
+        suggestedPrice: 410,
+        floorPrice: 240,
+        ceilingPrice: 450,
+        dowWeight: 1.3,
+        dynamicElasticity: -0.35,
+        occPush: 0.082,
+        pickPush: 0.015,
+        adjustmentFactor: 0.419,
+        daysUntilStay: 19,
+        currentOccupancy: 0.59,
+        expectedOccupancy: 0.74,
+      },
     },
     actions: [
       { id: "approve", label: "Apply event pricing", primary: true },
@@ -120,6 +209,30 @@ export const INSIGHTS: Insight[] = [
       ],
       aLabel: "Expected",
       bLabel: "Actual",
+    },
+    explainability: {
+      narrative:
+        "Pickup is 23% above the expected booking curve — demand is materially stronger than baseline. Engine recommended +$53 (+12.5%) on Sat May 24. Pickup signal contributed +9%, Saturday DOW weight added +3%, and your 78% current occupancy multiplied the pickup impact via the pickup_scaling_factor.",
+      drivers: [
+        { label: "Pickup deviation (+23% vs curve)", contribution: 38, direction: "up" },
+        { label: "Saturday DOW weight (1.4×)", contribution: 12, direction: "up" },
+        { label: "Pickup scaling (78% occ)", contribution: 5, direction: "up" },
+        { label: "Comp set parity (neutral)", contribution: -2, direction: "neutral" },
+      ],
+      calculation: {
+        basePrice: 425,
+        suggestedPrice: 478,
+        floorPrice: 320,
+        ceilingPrice: 550,
+        dowWeight: 1.4,
+        dynamicElasticity: -0.38,
+        occPush: 0.041,
+        pickPush: 0.087,
+        adjustmentFactor: 0.125,
+        daysUntilStay: 12,
+        currentOccupancy: 0.78,
+        expectedOccupancy: 0.63,
+      },
     },
     actions: [
       { id: "approve", label: "Apply suggested uplift", primary: true },
