@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
+    --primary: 211 100% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 0 0% 10%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 0 0% 10%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 211 100% 40%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 222 27% 7%;
+    --foreground: 0 0% 98%;
+    --card: 222 25% 10%;
+    --card-foreground: 0 0% 98%;
+    --popover: 222 25% 10%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 211 100% 55%;
+    --primary-foreground: 0 0% 10%;
+    --secondary: 222 20% 14%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 222 20% 14%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 222 20% 14%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 222 20% 18%;
+    --input: 222 20% 18%;
+    --ring: 211 100% 55%;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1, "cv11" 1;
+  }
+}
+
+/* Soft scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
+/* Gradient utility */
+.bg-mesh {
+  background-image:
+    radial-gradient(at 0% 0%, hsl(211 100% 95%) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, hsl(211 100% 92%) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, hsl(210 40% 96%) 0px, transparent 50%);
+}
+.dark .bg-mesh {
+  background-image:
+    radial-gradient(at 0% 0%, hsl(211 80% 15%) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, hsl(211 60% 12%) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, hsl(222 25% 10%) 0px, transparent 50%);
+}
+
+.glass {
+  backdrop-filter: blur(12px);
+  background-color: hsl(var(--card) / 0.7);
+}
