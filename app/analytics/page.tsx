@@ -1,0 +1,66 @@
+"use client";
+import * as React from "react";
+import { motion } from "framer-motion";
+import { BarChart3 } from "lucide-react";
+import { AnalyticsHeader } from "@/components/analytics/analytics-header";
+import { PerformanceIndices } from "@/components/analytics/performance-indices";
+import { KpiTrend } from "@/components/analytics/kpi-trend";
+import { ForecastAccuracy } from "@/components/analytics/forecast-accuracy";
+import { ChannelMix } from "@/components/analytics/channel-mix";
+import { SegmentMix } from "@/components/analytics/segment-mix";
+import { PickupRetrospective } from "@/components/analytics/pickup-retrospective";
+import { Distributions } from "@/components/analytics/distributions";
+import { PricingAuditTrail } from "@/components/analytics/pricing-audit-trail";
+
+export default function AnalyticsPage() {
+  const [range, setRange] = React.useState<"30d" | "90d" | "365d">("90d");
+  const [showStly, setShowStly] = React.useState(true);
+
+  return (
+    <div className="space-y-6">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-end justify-between gap-3 flex-wrap"
+      >
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight">Analytics</h1>
+            <span className="rounded-full bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 px-2 py-0.5 text-[10px] font-semibold ring-1 ring-brand-200 dark:ring-brand-800/60 inline-flex items-center gap-1">
+              <BarChart3 className="h-3 w-3" />
+              MONTHLY REVIEW
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+            The strategic view. Use this for monthly ownership reporting and quarterly performance
+            reviews. Daily decisions live in the Action Center; weekly pacing lives in Forecast.
+          </p>
+        </div>
+      </motion.div>
+
+      <AnalyticsHeader
+        range={range}
+        setRange={setRange}
+        comparison={showStly}
+        setComparison={setShowStly}
+      />
+
+      <PerformanceIndices />
+
+      <KpiTrend showStly={showStly} />
+
+      <ForecastAccuracy />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ChannelMix />
+        <SegmentMix />
+      </div>
+
+      <PickupRetrospective />
+
+      <Distributions />
+
+      <PricingAuditTrail />
+    </div>
+  );
+}

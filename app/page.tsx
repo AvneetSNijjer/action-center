@@ -7,6 +7,8 @@ import type { Insight, Severity } from "@/lib/types";
 import { StatsOverview } from "@/components/stats-overview";
 import { MorningBriefing } from "@/components/morning-briefing";
 import { StrategyIndicator } from "@/components/strategy-indicator";
+import { PendingApprovalsWidget } from "@/components/pending-approvals";
+import { PublishingHealth } from "@/components/publishing-health";
 import { FiltersBar, type Filters } from "@/components/filters-bar";
 import { InsightCard } from "@/components/insight-card";
 import { InsightDetailPanel } from "@/components/insight-detail-panel";
@@ -112,7 +114,11 @@ export default function ActionCenterPage() {
 
       <MorningBriefing />
 
+      <PublishingHealth />
+
       <StatsOverview counts={counts} revenueImpact={totalRevenueImpact} />
+
+      <PendingApprovalsWidget />
 
       <div className="rounded-xl border border-border bg-card p-4">
         <FiltersBar filters={filters} setFilters={setFilters} counts={counts} />

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, History, Settings, BarChart3, Bell, Building2, ChevronDown, Compass } from "lucide-react";
+import { LayoutDashboard, History, Settings, BarChart3, Bell, Building2, ChevronDown, Compass, LineChart } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { HOTELS } from "@/lib/mock-data";
@@ -9,9 +9,10 @@ import { Badge } from "@/components/ui/badge";
 
 const nav = [
   { href: "/", label: "Action Center", Icon: LayoutDashboard, badge: 8 },
+  { href: "/forecast", label: "Forecast & Demand", Icon: LineChart },
   { href: "/strategy", label: "Pricing Strategy", Icon: Compass },
+  { href: "/analytics", label: "Analytics", Icon: BarChart3 },
   { href: "/history", label: "History", Icon: History },
-  { href: "/analytics", label: "Analytics", Icon: BarChart3, disabled: true },
   { href: "/notifications", label: "Notifications", Icon: Bell, disabled: true },
   { href: "/settings", label: "Settings", Icon: Settings },
 ];
