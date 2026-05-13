@@ -1,10 +1,9 @@
 "use client";
 import * as React from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Inbox, ChevronLeft } from "lucide-react";
+import { Inbox, ChevronLeft, Loader2 } from "lucide-react";
 import useSWR from "swr";
-import { INSIGHTS } from "@/lib/mock-data";
-import type { Insight, Severity } from "@/lib/types";
+import type { Insight, Severity, InsightType } from "@/lib/types";
 import { StatsOverview } from "@/components/stats-overview";
 import { MorningBriefing } from "@/components/morning-briefing";
 import { StrategyIndicator } from "@/components/strategy-indicator";
@@ -16,13 +15,65 @@ import { InsightDetailPanel } from "@/components/insight-detail-panel";
 import { ActionToast } from "@/components/action-toast";
 import { usePortfolio } from "@/components/portfolio-provider";
 import { cn } from "@/lib/utils";
-import type { MorningBriefingData, ApprovalRow } from "@/lib/queries/action-center";
+import type {
+  MorningBriefingData,
+  ApprovalRow,
+  InsightRow,
+  PublishingHealthData,
+} from "@/lib/queries/action-center";
+
+/* -------------------------------------------------------
+ * Map DB InsightRow → UI Insight (no fake data added)
+ * ------------------------------------------------------- */
+const INSIGHT_TYPE_MAP: Record<string, InsightType> = {
+  competitor_change:  "competitor_change",
+  event_alert:        "event_alert",
+  demand_pacing:      "demand_pacing",
+  cancellation_alert: "cancellation_alert",
+  revenue_pacing:     "revenue_pacing",
+  pending_approvals:  "pending_approvals",
+  stale_pricing:      "stale_pricing",
+};
+
+function insightRowToInsight(row: InsightRow, hotelName: string): Insight {
+  // Derive severity from confidence score
+  const score = row.confidenceScore ?? 0;
+  const severity: Severity =
+    score >= 0.8 ? "critical"
+    : score >= 0.6 ? "warning"
+    : score >= 0.4 ? "opportunity"
+    : "info";
+
+  // Collect affected dates from date range
+  const affectedDates: string[] = [];
+  if (row.dateStart) affectedDates.push(row.dateStart);
+  if (row.dateEnd && row.dateEnd !== row.dateStart) affectedDates.push(row.dateEnd);
+
+  return {
+    id:            row.id,
+    type:          INSIGHT_TYPE_MAP[row.insightType] ?? "demand_pacing",
+    severity,
+    title:         row.title,
+    summary:       row.description,
+    body:          row.description,
+    hotel:         hotelName,
+    affectedDates,
+    createdAt:     row.createdAt,
+    metrics:       [],   // DB doesn't store structured metrics
+    actions: [
+      { id: "review",  label: "Review",  primary: true },
+      { id: "dismiss", label: "Dismiss" },
+    ],
+    status: "new",
+    source: "Ampliphi · insights engine",
+  };
+}
 
 const severityRank: Record<Severity, number> = {
-  critical: 0,
-  warning: 1,
+  critical:    0,
+  warning:     1,
   opportunity: 2,
-  info: 3,
+  info:        3,
 };
 
 const fetcher = (url: string) =>
@@ -34,23 +85,62 @@ const fetcher = (url: string) =>
 export function PropertyActionCenter() {
   const { activePropertyId, activeHotel, switchToGroup } = usePortfolio();
 
-  // Live morning briefing
-  const { data: briefingRes } = useSWR<{ ok: boolean; data: MorningBriefingData }>(
+  // ── Live morning briefing ─────────────────────────────────────
+  const { data: briefingRes, isLoading: briefingLoading } = useSWR<{
+    ok: boolean;
+    data: MorningBriefingData;
+  }>(
     activePropertyId ? `/api/hotels/${activePropertyId}/morning-briefing` : null,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 300_000 }
   );
   const liveBriefing = briefingRes?.ok ? briefingRes.data : null;
 
-  // Live pending approvals
-  const { data: approvalsRes } = useSWR<{ ok: boolean; data: ApprovalRow[] }>(
+  // ── Live pending approvals ────────────────────────────────────
+  const { data: approvalsRes, isLoading: approvalsLoading } = useSWR<{
+    ok: boolean;
+    data: ApprovalRow[];
+  }>(
     activePropertyId ? `/api/hotels/${activePropertyId}/approvals` : null,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 60_000 }
   );
   const liveApprovals = approvalsRes?.ok ? approvalsRes.data : null;
 
-  const [insights, setInsights] = React.useState<Insight[]>(INSIGHTS);
+  // ── Live insights ─────────────────────────────────────────────
+  const { data: insightsRes, isLoading: insightsLoading } = useSWR<{
+    ok: boolean;
+    data: InsightRow[];
+  }>(
+    activePropertyId ? `/api/hotels/${activePropertyId}/insights` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 300_000 }
+  );
+
+  // ── Live publishing health ────────────────────────────────────
+  const { data: pubHealthRes } = useSWR<{
+    ok: boolean;
+    data: PublishingHealthData;
+  }>(
+    activePropertyId ? `/api/hotels/${activePropertyId}/publishing-health` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 60_000 }
+  );
+  const livePublishingHealth = pubHealthRes?.ok ? pubHealthRes.data : null;
+
+  // ── Map DB InsightRows → UI Insights ─────────────────────────
+  const hotelName = activeHotel?.name ?? activePropertyId ?? "Property";
+  const dbInsights: Insight[] = React.useMemo(() => {
+    if (!insightsRes?.ok || !insightsRes.data.length) return [];
+    return insightsRes.data.map((r) => insightRowToInsight(r, hotelName));
+  }, [insightsRes, hotelName]);
+
+  // ── Local insight state (dismiss / snooze) ───────────────────
+  const [insights, setInsights] = React.useState<Insight[]>([]);
+  React.useEffect(() => {
+    setInsights(dbInsights);
+  }, [dbInsights]);
+
   const [filters, setFilters] = React.useState<Filters>({
     severity: "all",
     type: "all",
@@ -61,35 +151,41 @@ export function PropertyActionCenter() {
 
   const counts = React.useMemo(() => {
     const c: Record<string, number> = { critical: 0, warning: 0, opportunity: 0, info: 0 };
-    insights.forEach((i) => {
-      c[i.severity] = (c[i.severity] || 0) + 1;
-    });
+    insights.forEach((i) => { c[i.severity] = (c[i.severity] || 0) + 1; });
     return c;
   }, [insights]);
 
   const totalRevenueImpact = React.useMemo(
-    () =>
-      insights
-        .filter((i) => (i.revenueImpact || 0) > 0)
-        .reduce((a, b) => a + (b.revenueImpact || 0), 0),
+    () => insights.filter((i) => (i.revenueImpact || 0) > 0).reduce((a, b) => a + (b.revenueImpact || 0), 0),
     [insights]
   );
 
   const filtered = React.useMemo(() => {
     let list = [...insights];
     if (filters.severity !== "all") list = list.filter((i) => i.severity === filters.severity);
-    if (filters.type !== "all") list = list.filter((i) => i.type === filters.type);
+    if (filters.type    !== "all") list = list.filter((i) => i.type     === filters.type);
     list.sort((a, b) => {
       if (filters.sort === "newest")
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       if (filters.sort === "impact")
         return Math.abs(b.revenueImpact || 0) - Math.abs(a.revenueImpact || 0);
       const sd = severityRank[a.severity] - severityRank[b.severity];
-      if (sd !== 0) return sd;
-      return Math.abs(b.revenueImpact || 0) - Math.abs(a.revenueImpact || 0);
+      return sd !== 0 ? sd : Math.abs(b.revenueImpact || 0) - Math.abs(a.revenueImpact || 0);
     });
     return list;
   }, [insights, filters]);
+
+  // Top 3 insights for morning briefing "what to look at today"
+  const topInsights = React.useMemo(
+    () =>
+      [...insights]
+        .sort((a, b) => {
+          const sd = severityRank[a.severity] - severityRank[b.severity];
+          return sd !== 0 ? sd : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        })
+        .slice(0, 3),
+    [insights]
+  );
 
   const fireToast = (msg: string) => {
     setToast(msg);
@@ -113,27 +209,22 @@ export function PropertyActionCenter() {
         setActive(null);
         fireToast("Action applied · price queue updated");
         break;
-      case "adjust":
-      case "review":
-      case "view":
       default:
         if (!active) setActive(insight);
         fireToast("Opening details");
-        break;
     }
   };
 
-  // Property display from live DB hotel
-  const propertyLabel = activeHotel?.name ?? activePropertyId ?? "Property";
-  const propertyCity = activeHotel?.city ?? "";
-  const propertyState = activeHotel?.state ?? "";
+  const propertyLabel    = activeHotel?.name  ?? activePropertyId ?? "Property";
+  const propertyCity     = activeHotel?.city  ?? "";
+  const propertyState    = activeHotel?.state ?? "";
   const propertyLocation = propertyCity
     ? `${propertyCity}${propertyState ? `, ${propertyState}` : ""}`
     : "";
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb back to portfolio */}
+      {/* Breadcrumb */}
       <motion.button
         initial={{ opacity: 0, y: -4 }}
         animate={{ opacity: 1, y: 0 }}
@@ -167,9 +258,16 @@ export function PropertyActionCenter() {
         </p>
       </div>
 
-      <MorningBriefing liveData={liveBriefing} />
+      {briefingLoading && !liveBriefing ? (
+        <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground rounded-xl border border-border bg-card">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading morning briefing…
+        </div>
+      ) : (
+        <MorningBriefing liveData={liveBriefing} topInsights={topInsights} />
+      )}
 
-      <PublishingHealth />
+      <PublishingHealth liveData={livePublishingHealth} />
 
       <StatsOverview
         counts={counts}
@@ -177,7 +275,14 @@ export function PropertyActionCenter() {
         pendingApprovals={liveApprovals?.length ?? activeHotel?.pendingApprovals}
       />
 
-      <PendingApprovalsWidget liveApprovals={liveApprovals} />
+      {approvalsLoading && !liveApprovals ? (
+        <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground rounded-xl border border-border bg-card">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading pending approvals…
+        </div>
+      ) : (
+        <PendingApprovalsWidget liveApprovals={liveApprovals} />
+      )}
 
       <div className="rounded-xl border border-border bg-card p-4">
         <FiltersBar filters={filters} setFilters={setFilters} counts={counts} />
@@ -186,12 +291,25 @@ export function PropertyActionCenter() {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-            {filtered.length} insight{filtered.length === 1 ? "" : "s"}
+            {insightsLoading && !insights.length
+              ? "Loading insights…"
+              : `${filtered.length} insight${filtered.length === 1 ? "" : "s"}`}
           </h2>
         </div>
 
         <AnimatePresence mode="popLayout">
-          {filtered.length === 0 ? (
+          {insightsLoading && !insights.length ? (
+            <motion.div
+              key="loading"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground rounded-xl border border-border bg-card/40"
+            >
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Fetching insights from DB…
+            </motion.div>
+          ) : filtered.length === 0 ? (
             <motion.div
               key="empty"
               initial={{ opacity: 0 }}
@@ -200,9 +318,13 @@ export function PropertyActionCenter() {
               className="rounded-xl border border-dashed border-border bg-card/40 p-12 text-center"
             >
               <Inbox className="mx-auto h-10 w-10 text-muted-foreground" />
-              <div className="mt-3 font-medium">You&apos;re all caught up</div>
+              <div className="mt-3 font-medium">
+                {insights.length === 0 ? "No insights in the last 30 days" : "You're all caught up"}
+              </div>
               <div className="mt-1 text-sm text-muted-foreground">
-                No insights match the current filters. Try clearing them.
+                {insights.length === 0
+                  ? "Insights appear here as the engine detects pricing opportunities."
+                  : "No insights match the current filters. Try clearing them."}
               </div>
             </motion.div>
           ) : (

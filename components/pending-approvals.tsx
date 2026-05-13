@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ActionToast } from "@/components/action-toast";
-import { PENDING_APPROVALS, type PendingApproval } from "@/lib/forecast-data";
+import type { PendingApproval } from "@/lib/forecast-data";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { ApprovalRow } from "@/lib/queries/action-center";
 
@@ -38,20 +38,23 @@ function toUiItem(r: ApprovalRow): PendingApproval {
   };
 }
 
+const SHOW_LIMIT = 5;
+
 export function PendingApprovalsWidget({
   liveApprovals,
 }: {
   liveApprovals?: ApprovalRow[] | null;
 }) {
   const initialItems = React.useMemo(
-    () => (liveApprovals != null ? liveApprovals.map(toUiItem) : PENDING_APPROVALS),
+    () => (liveApprovals != null ? liveApprovals.map(toUiItem) : []),
     [liveApprovals]
   );
   const [items, setItems] = React.useState<PendingApproval[]>(initialItems);
+  const [showAll, setShowAll] = React.useState(false);
 
   // Re-sync when live data arrives
   React.useEffect(() => {
-    setItems(liveApprovals != null ? liveApprovals.map(toUiItem) : PENDING_APPROVALS);
+    setItems(liveApprovals != null ? liveApprovals.map(toUiItem) : []);
   }, [liveApprovals]);
   const [toast, setToast] = React.useState<string | null>(null);
   const fire = (msg: string) => {
@@ -102,7 +105,7 @@ export function PendingApprovalsWidget({
                 Queue is clear — no pending approvals right now.
               </div>
             ) : (
-              items.map((a, i) => {
+              (showAll ? items : items.slice(0, SHOW_LIMIT)).map((a, i) => {
                 const up = a.change > 0;
                 return (
                   <motion.div
@@ -136,27 +139,27 @@ export function PendingApprovalsWidget({
                             {a.severity === "high" ? "Threshold exceeded" : "Review needed"}
                           </Badge>
                         </div>
-                        <div className="mt-0.5 flex items-baseline gap-3 text-xs flex-wrap">
-                          <span className="text-muted-foreground line-through">
+                        {/* Arrow-format price: $185 → $236 (+27.2%) */}
+                        <div className="mt-0.5 flex items-center gap-1.5 text-sm flex-wrap">
+                          <span className="text-muted-foreground tabular-nums">
                             {formatCurrency(a.currentPrice)}
                           </span>
-                          <span className="font-semibold text-base">{formatCurrency(a.suggestedPrice)}</span>
+                          <ArrowUpRight className={cn("h-3.5 w-3.5 shrink-0", up ? "text-emerald-500" : "text-red-500 rotate-180")} />
+                          <span className="font-semibold tabular-nums">{formatCurrency(a.suggestedPrice)}</span>
                           <span
                             className={cn(
-                              "font-medium",
+                              "text-xs font-medium",
                               up ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
                             )}
                           >
-                            {a.change > 0 ? "+" : ""}
-                            {formatCurrency(a.change)} ({a.changePct > 0 ? "+" : ""}
-                            {a.changePct.toFixed(1)}%)
+                            ({a.changePct > 0 ? "+" : ""}{a.changePct.toFixed(1)}%)
                           </span>
-                          <span className="ml-auto text-muted-foreground flex items-center gap-1">
+                          <span className="ml-auto text-muted-foreground flex items-center gap-1 text-xs">
                             <Clock className="h-3 w-3" />
                             {a.age}
                           </span>
                         </div>
-                        <div className="text-[11px] text-muted-foreground mt-1">{a.reason}</div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">{a.reason}</div>
                       </div>
                       <div className="flex flex-col gap-1">
                         <Button size="sm" className="h-7 text-xs" onClick={() => approve(a.id)}>
@@ -171,6 +174,20 @@ export function PendingApprovalsWidget({
                   </motion.div>
                 );
               })
+            )}
+            {/* Show all / collapse toggle */}
+            {items.length > SHOW_LIMIT && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-xs text-muted-foreground hover:text-foreground mt-1"
+                onClick={() => setShowAll((v) => !v)}
+              >
+                {showAll
+                  ? "Show fewer"
+                  : `Show all ${items.length} pending`}
+                <ChevronRight className={cn("h-3.5 w-3.5 ml-1 transition-transform", showAll && "rotate-90")} />
+              </Button>
             )}
             {items.length > 0 && (
               <Button variant="secondary" className="w-full mt-1" onClick={batchApprove}>

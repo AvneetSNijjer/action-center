@@ -46,13 +46,7 @@ export function ScopeSelector() {
     if (!open) setQuery("");
   }, [open]);
 
-  if (!hydrated) {
-    return <div className="h-9 w-64 rounded-lg animate-pulse bg-muted" aria-hidden />;
-  }
-
-  const isGroup = scope === "group";
-  const activeName = activeHotel?.name ?? activePropertyId ?? "Select property";
-
+  // Must be before any early returns — Rules of Hooks
   const filtered = React.useMemo(() => {
     if (!query.trim()) return hotels;
     const q = query.toLowerCase();
@@ -63,8 +57,14 @@ export function ScopeSelector() {
         h.state.toLowerCase().includes(q) ||
         h.id?.toLowerCase().includes(q)
     );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hotels, query]);
+
+  if (!hydrated) {
+    return <div className="h-9 w-64 rounded-lg animate-pulse bg-muted" aria-hidden />;
+  }
+
+  const isGroup = scope === "group";
+  const activeName = activeHotel?.name ?? activePropertyId ?? "Select property";
 
   return (
     <div ref={ref} className="relative">
