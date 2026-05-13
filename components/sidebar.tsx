@@ -3,7 +3,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  History,
   Settings,
   BarChart3,
   Bell,
@@ -19,7 +18,6 @@ const nav = [
   { href: "/forecast", label: "Forecast & Demand", Icon: LineChart },
   { href: "/strategy", label: "Pricing Strategy", Icon: Compass },
   { href: "/analytics", label: "Analytics", Icon: BarChart3 },
-  { href: "/history", label: "History", Icon: History },
   { href: "/notifications", label: "Notifications", Icon: Bell, disabled: true },
   { href: "/settings", label: "Settings", Icon: Settings },
 ];

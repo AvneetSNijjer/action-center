@@ -129,7 +129,8 @@ export function AnalyticsHeader({ range, setRange, comparison, setComparison }: 
               </div>
             </div>
 
-            {/* Headline KPIs */}
+            {/* TODO: Re-enable when we have real RevPAR/ADR/Occupancy data wired up.
+                Commented out per UI feedback — duplicates Morning Briefing on the home page.
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
               <HeadlineKpi
                 label="RevPAR"
@@ -161,6 +162,7 @@ export function AnalyticsHeader({ range, setRange, comparison, setComparison }: 
                 show={comparison}
               />
             </div>
+            */}
           </div>
         </Card>
       </motion.div>

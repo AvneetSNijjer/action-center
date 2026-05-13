@@ -5,6 +5,7 @@ import { StrategyModeCard } from "@/components/strategy-mode-card";
 import { StrategyGoals } from "@/components/strategy-goals";
 import { StrategyPerformance } from "@/components/strategy-performance";
 import { StrategyImpactExplainer } from "@/components/strategy-impact-explainer";
+import { DaySimulator } from "@/components/strategy/day-simulator";
 import { PageBreadcrumb } from "@/components/page-breadcrumb";
 import { usePortfolio } from "@/components/portfolio-provider";
 import { getProperty } from "@/lib/portfolio";
@@ -50,6 +51,7 @@ export function PropertyStrategy() {
         </div>
       </div>
       <StrategyPerformance />
+      <DaySimulator />
     </div>
   );
 }
