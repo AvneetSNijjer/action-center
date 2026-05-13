@@ -375,23 +375,6 @@ export const INSIGHTS: Insight[] = [
   },
 ];
 
-export const DISMISSED_INSIGHTS: Insight[] = [
-  {
-    ...INSIGHTS[7],
-    id: "d1",
-    title: "Westin dropped premium suite rate by $80",
-    createdAt: hoursAgo(72),
-    status: "dismissed",
-  },
-  {
-    ...INSIGHTS[2],
-    id: "d2",
-    title: "Pickup pacing 12% ahead for Memorial Day",
-    createdAt: hoursAgo(96),
-    status: "actioned",
-  },
-];
-
 // Weekly trend for header chart
 export const ACTION_TREND = [
   { name: "Mon", new: 12, actioned: 9 },

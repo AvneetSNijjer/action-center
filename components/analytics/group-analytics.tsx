@@ -82,7 +82,8 @@ export function GroupAnalytics() {
         </p>
       </motion.div>
 
-      {/* Portfolio rollup header */}
+      {/* TODO: Re-enable portfolio rollup KPI hero once real data is wired.
+          Commented out per UI feedback — duplicates the Action Center Morning Briefing.
       <Card className="relative overflow-hidden border-brand-100/80 dark:border-brand-900/40">
         <div className="absolute inset-0 bg-mesh opacity-50 pointer-events-none" />
         <div className="relative p-6 space-y-5">
@@ -98,35 +99,17 @@ export function GroupAnalytics() {
             </p>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-            <PortfolioKpi
-              label="RevPAR"
-              value={formatCurrency(PORTFOLIO_ROLLUP.revpar)}
-              delta={`+${PORTFOLIO_ROLLUP.revparDeltaLy.toFixed(1)}%`}
-              up
-            />
-            <PortfolioKpi
-              label="ADR"
-              value={formatCurrency(PORTFOLIO_ROLLUP.adr)}
-              delta={`+${formatCurrency(PORTFOLIO_ROLLUP.adrDeltaLy)}`}
-              up
-            />
-            <PortfolioKpi
-              label="Occupancy"
-              value={`${PORTFOLIO_ROLLUP.occupancy.toFixed(1)}%`}
-              delta={`+${PORTFOLIO_ROLLUP.occupancyDeltaLy.toFixed(1)} pts`}
-              up
-            />
-            <PortfolioKpi
-              label="Revenue MTD"
-              value={compactMoney(PORTFOLIO_ROLLUP.revenueMtd)}
-              delta={`+${PORTFOLIO_ROLLUP.revenueToBudget}% to budget`}
-              up
-            />
+            <PortfolioKpi label="RevPAR" value={formatCurrency(PORTFOLIO_ROLLUP.revpar)} delta={`+${PORTFOLIO_ROLLUP.revparDeltaLy.toFixed(1)}%`} up />
+            <PortfolioKpi label="ADR" value={formatCurrency(PORTFOLIO_ROLLUP.adr)} delta={`+${formatCurrency(PORTFOLIO_ROLLUP.adrDeltaLy)}`} up />
+            <PortfolioKpi label="Occupancy" value={`${PORTFOLIO_ROLLUP.occupancy.toFixed(1)}%`} delta={`+${PORTFOLIO_ROLLUP.occupancyDeltaLy.toFixed(1)} pts`} up />
+            <PortfolioKpi label="Revenue MTD" value={compactMoney(PORTFOLIO_ROLLUP.revenueMtd)} delta={`+${PORTFOLIO_ROLLUP.revenueToBudget}% to budget`} up />
           </div>
         </div>
       </Card>
+      */}
 
-      {/* Indices */}
+      {/* TODO: Re-enable Portfolio Performance vs Comp Set (RGI/ARI/MPI) once we have
+          a clearer explanation of what they show. Commented out per UI feedback.
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -143,43 +126,21 @@ export function GroupAnalytics() {
               const kpi = PERFORMANCE_INDICES[k];
               const label = k === "rgi" ? "RGI" : k === "ari" ? "ARI" : "MPI";
               const fullName =
-                k === "rgi"
-                  ? "Revenue Generation Index"
-                  : k === "ari"
-                  ? "Average Rate Index"
-                  : "Market Penetration Index";
+                k === "rgi" ? "Revenue Generation Index" : k === "ari" ? "Average Rate Index" : "Market Penetration Index";
               const beating = kpi.value >= 100;
               return (
-                <div
-                  key={k}
-                  className="rounded-xl border border-border bg-card p-4"
-                >
+                <div key={k} className="rounded-xl border border-border bg-card p-4">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-xl font-bold text-brand-700 dark:text-brand-300">
-                      {label}
-                    </span>
+                    <span className="text-xl font-bold text-brand-700 dark:text-brand-300">{label}</span>
                     <span className="text-[11px] text-muted-foreground">{fullName}</span>
                   </div>
                   <div className="mt-2 flex items-baseline gap-2">
                     <span className="text-3xl font-bold tabular-nums">{kpi.value.toFixed(1)}</span>
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-0.5 text-xs font-semibold",
-                        kpi.delta >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
-                      )}
-                    >
-                      {kpi.delta >= 0 ? "+" : ""}
-                      {kpi.delta.toFixed(1)}
+                    <span className={cn("inline-flex items-center gap-0.5 text-xs font-semibold", kpi.delta >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
+                      {kpi.delta >= 0 ? "+" : ""}{kpi.delta.toFixed(1)}
                     </span>
                   </div>
-                  <div
-                    className={cn(
-                      "mt-1 text-[10px] font-medium",
-                      beating
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-amber-600 dark:text-amber-400"
-                    )}
-                  >
+                  <div className={cn("mt-1 text-[10px] font-medium", beating ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400")}>
                     {beating ? "Beating market" : "Trailing market"}
                   </div>
                 </div>
@@ -188,6 +149,7 @@ export function GroupAnalytics() {
           </div>
         </CardContent>
       </Card>
+      */}
 
       {/* Cross-property comparison table */}
       <Card>

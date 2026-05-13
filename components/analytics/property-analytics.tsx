@@ -3,13 +3,13 @@ import * as React from "react";
 import { motion } from "framer-motion";
 import { BarChart3 } from "lucide-react";
 import { AnalyticsHeader } from "@/components/analytics/analytics-header";
-import { PerformanceIndices } from "@/components/analytics/performance-indices";
+// import { PerformanceIndices } from "@/components/analytics/performance-indices"; // TODO: re-enable when comp-set indices are clearly explained
 import { KpiTrend } from "@/components/analytics/kpi-trend";
-import { ForecastAccuracy } from "@/components/analytics/forecast-accuracy";
+// import { ForecastAccuracy } from "@/components/analytics/forecast-accuracy"; // TODO: re-enable when forecast data is wired
 import { ChannelMix } from "@/components/analytics/channel-mix";
 import { SegmentMix } from "@/components/analytics/segment-mix";
 import { PickupRetrospective } from "@/components/analytics/pickup-retrospective";
-import { Distributions } from "@/components/analytics/distributions";
+// import { Distributions } from "@/components/analytics/distributions"; // TODO: re-enable when lead-time/LOS data is in the DB
 import { PricingAuditTrail } from "@/components/analytics/pricing-audit-trail";
 import { PageBreadcrumb } from "@/components/page-breadcrumb";
 import { usePortfolio } from "@/components/portfolio-provider";
@@ -50,15 +50,15 @@ export function PropertyAnalytics() {
       </motion.div>
 
       <AnalyticsHeader range={range} setRange={setRange} comparison={showStly} setComparison={setShowStly} />
-      <PerformanceIndices />
+      {/* TODO: <PerformanceIndices /> — re-enable once we explain comp-set indices clearly */}
       <KpiTrend showStly={showStly} />
-      <ForecastAccuracy />
+      {/* TODO: <ForecastAccuracy /> — re-enable when forecast data is wired */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ChannelMix />
         <SegmentMix />
       </div>
       <PickupRetrospective />
-      <Distributions />
+      {/* TODO: <Distributions /> — re-enable when lead-time/LOS distribution data is in the DB */}
       <PricingAuditTrail />
     </div>
   );
