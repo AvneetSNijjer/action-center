@@ -54,7 +54,16 @@ function Stat({ label, value, delta, trend, Icon, accent, index = 0 }: StatProps
   );
 }
 
-export function StatsOverview({ counts, revenueImpact }: { counts: Record<string, number>; revenueImpact: number }) {
+export function StatsOverview({
+  counts,
+  revenueImpact,
+  pendingApprovals,
+}: {
+  counts: Record<string, number>;
+  revenueImpact: number;
+  /** Live pending approvals count from DB. If provided, shown as badge delta. */
+  pendingApprovals?: number | null;
+}) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       <Stat

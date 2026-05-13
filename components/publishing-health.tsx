@@ -1,11 +1,10 @@
 "use client";
 import { motion } from "framer-motion";
-import { Activity, CheckCircle2, Cloud, Database, Search } from "lucide-react";
-import { PUBLISHING_HEALTH } from "@/lib/forecast-data";
+import { Activity, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { PublishingHealthData } from "@/lib/queries/action-center";
 
-export function PublishingHealth() {
-  const h = PUBLISHING_HEALTH;
+export function PublishingHealth({ liveData }: { liveData?: PublishingHealthData | null }) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -18,19 +17,51 @@ export function PublishingHealth() {
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
           <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
         </span>
-        <span className="font-semibold">All systems operational</span>
+        <span className="font-semibold">Rate publishing · live</span>
       </div>
-      <Stat Icon={Activity} label="Pushes today" value={h.pushesToday.toString()} />
-      <Stat
-        Icon={CheckCircle2}
-        label="Success rate"
-        value={`${h.successRate}%`}
-        accent={h.successRate > 99 ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}
-      />
-      <Stat Icon={Cloud} label="Agora" value={h.agoraStatus} ok />
-      <Stat Icon={Database} label="PMS sync" value={h.pmsStatus} ok />
-      <Stat Icon={Search} label="Comp scrape" value={h.competitorScrapeStatus} ok />
-      <div className="ml-auto text-muted-foreground">Last sync {h.lastSync}</div>
+
+      {liveData != null ? (
+        <>
+          <Stat
+            Icon={CheckCircle2}
+            label="Approved 24h"
+            value={liveData.published24h.toString()}
+            accent="text-emerald-600 dark:text-emerald-400"
+          />
+          <Stat
+            Icon={Clock}
+            label="Pending"
+            value={liveData.pending.toString()}
+            accent={
+              liveData.pending > 20
+                ? "text-red-600 dark:text-red-400"
+                : liveData.pending > 0
+                ? "text-amber-600 dark:text-amber-400"
+                : "text-emerald-600 dark:text-emerald-400"
+            }
+          />
+          {liveData.rejected24h > 0 && (
+            <Stat
+              Icon={AlertCircle}
+              label="Rejected 24h"
+              value={liveData.rejected24h.toString()}
+              accent="text-red-600 dark:text-red-400"
+            />
+          )}
+          <Stat
+            Icon={Activity}
+            label="Success rate"
+            value={`${liveData.successRate}%`}
+            accent={
+              liveData.successRate >= 99
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-amber-600 dark:text-amber-400"
+            }
+          />
+        </>
+      ) : (
+        <span className="text-muted-foreground">Loading…</span>
+      )}
     </motion.div>
   );
 }
@@ -40,24 +71,17 @@ function Stat({
   label,
   value,
   accent,
-  ok,
 }: {
-  Icon: any;
+  Icon: React.ElementType;
   label: string;
   value: string;
   accent?: string;
-  ok?: boolean;
 }) {
   return (
     <div className="flex items-center gap-1.5">
-      <Icon
-        className={cn(
-          "h-3.5 w-3.5",
-          accent || (ok ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")
-        )}
-      />
+      <Icon className={cn("h-3.5 w-3.5", accent ?? "text-muted-foreground")} />
       <span className="text-muted-foreground">{label}:</span>
-      <span className={cn("font-semibold capitalize", accent)}>{value}</span>
+      <span className={cn("font-semibold", accent)}>{value}</span>
     </div>
   );
 }

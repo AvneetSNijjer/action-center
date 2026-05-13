@@ -6,10 +6,21 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { useStrategy } from "@/components/strategy-provider";
 import { STRATEGY_ACTUALS } from "@/lib/strategy";
 import { cn, formatCurrency } from "@/lib/utils";
+import type { HotelRow } from "@/lib/queries/hotels";
 
-export function StrategyPerformance() {
+export function StrategyPerformance({
+  liveKpis,
+}: {
+  /** Live hotel KPIs from DB. When provided, occupancy and ADR are sourced from DB. */
+  liveKpis?: HotelRow | null;
+}) {
   const { config } = useStrategy();
-  const a = STRATEGY_ACTUALS;
+  const a = {
+    ...STRATEGY_ACTUALS,
+    // Override with live data if available
+    mtdOccupancy: liveKpis?.occupancy ?? STRATEGY_ACTUALS.mtdOccupancy,
+    currentAdr: liveKpis?.adr ?? STRATEGY_ACTUALS.currentAdr,
+  };
   const g = config.goals;
 
   // Project end-of-month revenue at current pace
