@@ -5,6 +5,7 @@ import { StrategyProvider } from "@/components/strategy-provider";
 import { PortfolioProvider } from "@/components/portfolio-provider";
 import { Sidebar } from "@/components/sidebar";
 import { TopBar } from "@/components/topbar";
+import { ReadOnlyBanner } from "@/components/read-only-banner";
 
 export const metadata: Metadata = {
   title: "ampliphi · Action Center",
@@ -18,11 +19,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
           <PortfolioProvider>
             <StrategyProvider>
-              <div className="flex min-h-screen bg-background">
-                <Sidebar />
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <TopBar />
-                  <main className="flex-1 p-4 lg:p-8 max-w-7xl w-full mx-auto">{children}</main>
+              <div className="flex min-h-screen flex-col bg-background">
+                <ReadOnlyBanner />
+                <div className="flex flex-1">
+                  <Sidebar />
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <TopBar />
+                    <main className="flex-1 p-4 lg:p-8 max-w-7xl w-full mx-auto">{children}</main>
+                  </div>
                 </div>
               </div>
             </StrategyProvider>
