@@ -17,9 +17,31 @@ import { ResponsiveContainer, RadialBarChart, RadialBar, PolarAngleAxis } from "
 import { Card } from "@/components/ui/card";
 import { MORNING_BRIEFING } from "@/lib/mock-data";
 import { cn, formatCurrency } from "@/lib/utils";
+import type { MorningBriefingData } from "@/lib/queries/action-center";
 
-export function MorningBriefing() {
-  const b = MORNING_BRIEFING;
+export function MorningBriefing({ liveData }: { liveData?: MorningBriefingData | null }) {
+  // Use live data if available, otherwise fall back to mock
+  const b = liveData
+    ? {
+        date: liveData.date,
+        yesterday: {
+          revpar: liveData.yesterday.revpar,
+          adr: liveData.yesterday.adr,
+          occupancy: liveData.yesterday.occupancy,
+          revenue: liveData.yesterday.revenue,
+        },
+        today: {
+          arrivals: MORNING_BRIEFING.today.arrivals,
+          departures: MORNING_BRIEFING.today.departures,
+          inHouse: MORNING_BRIEFING.today.inHouse,
+          pickupLast24h: liveData.pickup7d,
+          pickupVsExpected: MORNING_BRIEFING.today.pickupVsExpected,
+          cancellationsLast24h: MORNING_BRIEFING.today.cancellationsLast24h,
+        },
+        mtd: MORNING_BRIEFING.mtd,
+        topActions: MORNING_BRIEFING.topActions,
+      }
+    : MORNING_BRIEFING;
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}

@@ -6,11 +6,53 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ActionToast } from "@/components/action-toast";
-import { PENDING_APPROVALS } from "@/lib/forecast-data";
+import { PENDING_APPROVALS, type PendingApproval } from "@/lib/forecast-data";
 import { cn, formatCurrency } from "@/lib/utils";
+import type { ApprovalRow } from "@/lib/queries/action-center";
 
-export function PendingApprovalsWidget() {
-  const [items, setItems] = React.useState(PENDING_APPROVALS);
+/** Convert a live ApprovalRow to the PendingApproval shape the UI expects. */
+function toUiItem(r: ApprovalRow): PendingApproval {
+  const stayDate = new Date(r.stayDate);
+  const dayOfWeek = stayDate.toLocaleDateString("en-US", { weekday: "short" });
+  const stayDateLabel = stayDate.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+  const ageMs = Date.now() - new Date(r.createdAt).getTime();
+  const ageH = Math.round(ageMs / 3_600_000);
+  const age = ageH < 24 ? `${ageH}h` : `${Math.round(ageH / 24)}d`;
+  const isIncrease = r.change >= 0;
+  return {
+    id: r.id,
+    roomType: r.roomTypeId,
+    stayDate: stayDateLabel,
+    dayOfWeek,
+    currentPrice: r.currentRate,
+    suggestedPrice: r.suggestedRate,
+    change: r.change,
+    changePct: r.changePct,
+    violation: isIncrease ? "percentage_increase" : "percentage_decrease",
+    severity: Math.abs(r.changePct) >= 20 ? "high" : "medium",
+    age,
+    reason: r.violationType || r.violationSeverity || "Auto-publish threshold",
+  };
+}
+
+export function PendingApprovalsWidget({
+  liveApprovals,
+}: {
+  liveApprovals?: ApprovalRow[] | null;
+}) {
+  const initialItems = React.useMemo(
+    () => (liveApprovals != null ? liveApprovals.map(toUiItem) : PENDING_APPROVALS),
+    [liveApprovals]
+  );
+  const [items, setItems] = React.useState<PendingApproval[]>(initialItems);
+
+  // Re-sync when live data arrives
+  React.useEffect(() => {
+    setItems(liveApprovals != null ? liveApprovals.map(toUiItem) : PENDING_APPROVALS);
+  }, [liveApprovals]);
   const [toast, setToast] = React.useState<string | null>(null);
   const fire = (msg: string) => {
     setToast(msg);

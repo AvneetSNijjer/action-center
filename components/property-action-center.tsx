@@ -2,6 +2,7 @@
 import * as React from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Inbox, ChevronLeft } from "lucide-react";
+import useSWR from "swr";
 import { INSIGHTS } from "@/lib/mock-data";
 import type { Insight, Severity } from "@/lib/types";
 import { StatsOverview } from "@/components/stats-overview";
@@ -14,8 +15,8 @@ import { InsightCard } from "@/components/insight-card";
 import { InsightDetailPanel } from "@/components/insight-detail-panel";
 import { ActionToast } from "@/components/action-toast";
 import { usePortfolio } from "@/components/portfolio-provider";
-import { getProperty, HOTEL_GROUP } from "@/lib/portfolio";
 import { cn } from "@/lib/utils";
+import type { MorningBriefingData, ApprovalRow } from "@/lib/queries/action-center";
 
 const severityRank: Record<Severity, number> = {
   critical: 0,
@@ -24,9 +25,30 @@ const severityRank: Record<Severity, number> = {
   info: 3,
 };
 
+const fetcher = (url: string) =>
+  fetch(url).then((r) => {
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  });
+
 export function PropertyActionCenter() {
-  const { activePropertyId, switchToGroup } = usePortfolio();
-  const property = getProperty(activePropertyId);
+  const { activePropertyId, activeHotel, switchToGroup } = usePortfolio();
+
+  // Live morning briefing
+  const { data: briefingRes } = useSWR<{ ok: boolean; data: MorningBriefingData }>(
+    activePropertyId ? `/api/hotels/${activePropertyId}/morning-briefing` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 300_000 }
+  );
+  const liveBriefing = briefingRes?.ok ? briefingRes.data : null;
+
+  // Live pending approvals
+  const { data: approvalsRes } = useSWR<{ ok: boolean; data: ApprovalRow[] }>(
+    activePropertyId ? `/api/hotels/${activePropertyId}/approvals` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 60_000 }
+  );
+  const liveApprovals = approvalsRes?.ok ? approvalsRes.data : null;
 
   const [insights, setInsights] = React.useState<Insight[]>(INSIGHTS);
   const [filters, setFilters] = React.useState<Filters>({
@@ -101,8 +123,13 @@ export function PropertyActionCenter() {
     }
   };
 
-  const propertyLabel = property ? property.name : "Property";
-  const propertyLocation = property ? `${property.city}, ${property.state} · ${property.rooms} rooms` : "";
+  // Property display from live DB hotel
+  const propertyLabel = activeHotel?.name ?? activePropertyId ?? "Property";
+  const propertyCity = activeHotel?.city ?? "";
+  const propertyState = activeHotel?.state ?? "";
+  const propertyLocation = propertyCity
+    ? `${propertyCity}${propertyState ? `, ${propertyState}` : ""}`
+    : "";
 
   return (
     <div className="space-y-6">
@@ -117,7 +144,7 @@ export function PropertyActionCenter() {
         )}
       >
         <ChevronLeft className="h-3.5 w-3.5" />
-        <span>{HOTEL_GROUP.name}</span>
+        <span>All Properties</span>
         <span className="text-muted-foreground/60">/</span>
         <span className="text-foreground font-semibold">{propertyLabel}</span>
       </motion.button>
@@ -140,13 +167,17 @@ export function PropertyActionCenter() {
         </p>
       </div>
 
-      <MorningBriefing />
+      <MorningBriefing liveData={liveBriefing} />
 
       <PublishingHealth />
 
-      <StatsOverview counts={counts} revenueImpact={totalRevenueImpact} />
+      <StatsOverview
+        counts={counts}
+        revenueImpact={totalRevenueImpact}
+        pendingApprovals={liveApprovals?.length ?? activeHotel?.pendingApprovals}
+      />
 
-      <PendingApprovalsWidget />
+      <PendingApprovalsWidget liveApprovals={liveApprovals} />
 
       <div className="rounded-xl border border-border bg-card p-4">
         <FiltersBar filters={filters} setFilters={setFilters} counts={counts} />

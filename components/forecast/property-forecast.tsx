@@ -7,11 +7,11 @@ import { CompSetLadder } from "@/components/forecast/comp-set-ladder";
 import { UpcomingEvents } from "@/components/forecast/upcoming-events";
 import { PageBreadcrumb } from "@/components/page-breadcrumb";
 import { usePortfolio } from "@/components/portfolio-provider";
-import { getProperty } from "@/lib/portfolio";
 
 export function PropertyForecast() {
-  const { activePropertyId } = usePortfolio();
-  const property = getProperty(activePropertyId);
+  const { activePropertyId, activeHotel } = usePortfolio();
+  const propertyName = activeHotel?.name ?? activePropertyId ?? "this property";
+
   return (
     <div className="space-y-6">
       <PageBreadcrumb />
@@ -30,11 +30,7 @@ export function PropertyForecast() {
           </div>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
             The four views every revenue manager opens daily for{" "}
-            {property ? (
-              <span className="font-medium text-foreground">{property.name}</span>
-            ) : (
-              "this property"
-            )}
+            <span className="font-medium text-foreground">{propertyName}</span>
             : demand heatmap, pickup pacing, comp position, and upcoming events.
           </p>
         </div>

@@ -13,13 +13,14 @@ import { PickupRetrospective } from "@/components/analytics/pickup-retrospective
 import { PricingAuditTrail } from "@/components/analytics/pricing-audit-trail";
 import { PageBreadcrumb } from "@/components/page-breadcrumb";
 import { usePortfolio } from "@/components/portfolio-provider";
-import { getProperty } from "@/lib/portfolio";
 
 export function PropertyAnalytics() {
   const [range, setRange] = React.useState<"30d" | "90d" | "365d">("90d");
   const [showStly, setShowStly] = React.useState(true);
-  const { activePropertyId } = usePortfolio();
-  const property = getProperty(activePropertyId);
+  const { activePropertyId, activeHotel } = usePortfolio();
+  const property = activeHotel
+    ? { name: activeHotel.name, city: activeHotel.city, state: activeHotel.state }
+    : { name: activePropertyId ?? "Property", city: "", state: "" };
 
   return (
     <div className="space-y-6">

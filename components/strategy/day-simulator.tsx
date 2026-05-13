@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useStrategy } from "@/components/strategy-provider";
 import { usePortfolio } from "@/components/portfolio-provider";
-import { getProperty } from "@/lib/portfolio";
 import {
   getMode,
   DEFAULT_STRATEGY,
@@ -212,9 +211,8 @@ function simulate(day: SimDay, config: StrategyConfig, totalRooms: number): SimR
 
 export function DaySimulator() {
   const { config } = useStrategy();
-  const { activePropertyId } = usePortfolio();
-  const property = getProperty(activePropertyId);
-  const totalRooms = property?.rooms ?? 218;
+  const { activePropertyId, activeHotel } = usePortfolio();
+  const totalRooms = 218; // default; room count derived separately
 
   // Default selection: the first Saturday in the next 14 days (good demo)
   const defaultIdx = React.useMemo(() => {
@@ -383,11 +381,11 @@ export function DaySimulator() {
                 </div>
                 <div className="text-[11px] text-muted-foreground leading-tight mt-0.5">
                   {day.tag ?? (day.isWeekend ? "Weekend night" : "Midweek night")}
-                  {property && (
+                  {(activeHotel || activePropertyId) && (
                     <>
                       <span className="mx-1.5">·</span>
                       <span>
-                        {property.name} · {totalRooms} rooms
+                        {activeHotel?.name ?? activePropertyId} · {totalRooms} rooms
                       </span>
                     </>
                   )}

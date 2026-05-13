@@ -7,8 +7,14 @@ import { Button } from "@/components/ui/button";
 import { useStrategy } from "@/components/strategy-provider";
 import { ActionToast } from "@/components/action-toast";
 import { cn, formatCurrency } from "@/lib/utils";
+import type { PricingConfigRow } from "@/lib/queries/strategy";
 
-export function StrategyGoals() {
+export function StrategyGoals({
+  pricingConfig,
+}: {
+  /** Live pricing config from DB. When provided, pre-seeds ADR floor/ceiling. */
+  pricingConfig?: PricingConfigRow | null;
+}) {
   const { config, setGoals, reset } = useStrategy();
   const [local, setLocal] = React.useState(config.goals);
   const [toast, setToast] = React.useState<string | null>(null);
@@ -17,6 +23,17 @@ export function StrategyGoals() {
   React.useEffect(() => {
     setLocal(config.goals);
   }, [config.goals]);
+
+  // When live DB pricing config arrives, update floor/ceiling if they haven't been customized
+  React.useEffect(() => {
+    if (!pricingConfig) return;
+    setLocal((prev) => ({
+      ...prev,
+      adrFloor: pricingConfig.floorPrice > 0 ? pricingConfig.floorPrice : prev.adrFloor,
+      adrCeiling: pricingConfig.ceilingPrice > 0 ? pricingConfig.ceilingPrice : prev.adrCeiling,
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pricingConfig?.floorPrice, pricingConfig?.ceilingPrice]);
 
   const dirty =
     JSON.stringify(local) !== JSON.stringify(config.goals);
