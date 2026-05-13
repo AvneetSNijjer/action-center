@@ -1,6 +1,7 @@
 "use client";
-import { Bell, Search, HelpCircle } from "lucide-react";
+import { Bell, HelpCircle } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ScopeSelector } from "@/components/scope-selector";
 import { Button } from "@/components/ui/button";
 
 export function TopBar() {
@@ -13,18 +14,9 @@ export function TopBar() {
         <span className="font-semibold">ampliphi</span>
       </div>
 
-      <div className="hidden md:flex flex-1 max-w-xl items-center gap-2 rounded-lg border border-border bg-card/50 px-3 py-2">
-        <Search className="h-4 w-4 text-muted-foreground" />
-        <input
-          placeholder="Search insights, dates, room types..."
-          className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-        />
-        <kbd className="hidden lg:inline-flex h-5 items-center rounded border border-border bg-muted px-1.5 text-[10px] font-medium text-muted-foreground">
-          ⌘K
-        </kbd>
-      </div>
+      <ScopeSelector />
 
-      <div className="flex-1 md:hidden" />
+      <div className="flex-1" />
 
       <div className="flex items-center gap-1.5">
         <Button variant="ghost" size="icon" aria-label="Help">

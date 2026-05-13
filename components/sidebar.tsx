@@ -1,10 +1,17 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, History, Settings, BarChart3, Bell, Building2, ChevronDown, Compass, LineChart } from "lucide-react";
+import {
+  LayoutDashboard,
+  History,
+  Settings,
+  BarChart3,
+  Bell,
+  Compass,
+  LineChart,
+} from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { HOTELS } from "@/lib/mock-data";
 import { Badge } from "@/components/ui/badge";
 
 const nav = [
@@ -32,18 +39,7 @@ export function Sidebar() {
         </div>
       </div>
 
-      <div className="px-3 py-3">
-        <button className="flex w-full items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-left text-sm hover:bg-accent transition-colors">
-          <Building2 className="h-4 w-4 text-muted-foreground" />
-          <div className="flex-1 min-w-0">
-            <div className="truncate font-medium">{HOTELS[0].name}</div>
-            <div className="text-[10px] text-muted-foreground">{HOTELS[0].location} · {HOTELS[0].rooms} rooms</div>
-          </div>
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-        </button>
-      </div>
-
-      <nav className="flex-1 px-3 space-y-0.5">
+      <nav className="flex-1 px-3 py-3 space-y-0.5">
         {nav.map(({ href, label, Icon, badge, disabled }) => {
           const active = pathname === href;
           return (
@@ -80,7 +76,8 @@ export function Sidebar() {
       <div className="m-3 rounded-xl border border-border bg-gradient-to-br from-brand-50 to-white dark:from-brand-900/30 dark:to-transparent p-4">
         <div className="text-xs font-semibold text-brand-700 dark:text-brand-300">Pro tip</div>
         <p className="mt-1 text-xs leading-snug text-muted-foreground">
-          Snooze insights you can&apos;t act on now — they&apos;ll resurface automatically.
+          Switch scope from the topbar — Portfolio shows your whole group, individual properties
+          show their own Action Center.
         </p>
       </div>
     </aside>
