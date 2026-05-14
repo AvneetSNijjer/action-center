@@ -13,12 +13,14 @@ interface PortfolioContextValue {
   activePropertyId: string;
   hydrated: boolean;
   isLoading: boolean;
-  /** All hotels from DB (or mock fallback). */
+  /** All hotels from DB (filtered by role). */
   hotels: HotelRow[];
   /** Active hotel from DB (or null if not yet loaded). */
   activeHotel: HotelRow | null;
   /** Groups concept — currently a single group with all hotels. */
   groups: Array<{ id: string; name: string; propertyIds: string[] }>;
+  /** Role returned from /api/hotels meta — "admin" | "customer" */
+  role: string;
   setScope: (s: Scope) => void;
   setActiveProperty: (id: string, opts?: { switchToProperty?: boolean }) => void;
   switchToGroup: () => void;
@@ -44,13 +46,13 @@ const fetcher = (url: string) =>
   });
 
 /** Convert a DB HotelRow to a mock-compatible Property (best-effort). */
-function hotelRowToProperty(h: HotelRow): Property {
+export function hotelRowToProperty(h: HotelRow): Property {
   return {
     id: h.id,
     name: h.name,
     city: h.city,
     state: h.state,
-    rooms: 0, // not available in basic listing
+    rooms: 0,
     status: "on_track",
     openActions: h.pendingApprovals,
     criticalActions: 0,
@@ -72,10 +74,11 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const [activePropertyId, setActivePropertyIdState] = React.useState<string>(DEFAULT_HOTEL_ID);
   const [hydrated, setHydrated] = React.useState(false);
 
-  // Fetch hotels from DB with KPIs
+  // Fetch hotels from DB with KPIs — role filtering happens server-side
   const { data: hotelsResponse, isLoading } = useSWR<{
     ok: boolean;
     data: HotelRow[];
+    meta?: { role: string; total: number };
   }>("/api/hotels?withKpis=true", fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 60_000,
@@ -88,6 +91,8 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     }
     return [];
   }, [hotelsResponse]);
+
+  const role = hotelsResponse?.meta?.role ?? "admin";
 
   // Hydrate from localStorage
   React.useEffect(() => {
@@ -112,12 +117,20 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     if (!hydrated) return;
     try {
-      const state: StoredState = { scope, activePropertyId };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ scope, activePropertyId }));
     } catch {
       // ignore
     }
   }, [scope, activePropertyId, hydrated]);
+
+  // If role is customer and activePropertyId isn't in the allowed list, reset to first
+  React.useEffect(() => {
+    if (!dbHotels.length) return;
+    const found = dbHotels.some((h) => h.id === activePropertyId);
+    if (!found) {
+      setActivePropertyIdState(dbHotels[0].id);
+    }
+  }, [dbHotels, activePropertyId]);
 
   const activeHotel = React.useMemo(
     () => dbHotels.find((h) => h.id === activePropertyId) ?? null,
@@ -126,17 +139,10 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
 
   const groups = React.useMemo(() => {
     if (!dbHotels.length) return [];
-    return [
-      {
-        id: "all",
-        name: HOTEL_GROUP.name,
-        propertyIds: dbHotels.map((h) => h.id),
-      },
-    ];
+    return [{ id: "all", name: HOTEL_GROUP.name, propertyIds: dbHotels.map((h) => h.id) }];
   }, [dbHotels]);
 
   const setScope = React.useCallback((s: Scope) => setScopeState(s), []);
-
   const setActiveProperty = React.useCallback(
     (id: string, opts?: { switchToProperty?: boolean }) => {
       setActivePropertyIdState(id);
@@ -144,22 +150,14 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     },
     []
   );
-
   const switchToGroup = React.useCallback(() => setScopeState("group"), []);
 
   return (
     <PortfolioContext.Provider
       value={{
-        scope,
-        activePropertyId,
-        hydrated,
-        isLoading,
-        hotels: dbHotels,
-        activeHotel,
-        groups,
-        setScope,
-        setActiveProperty,
-        switchToGroup,
+        scope, activePropertyId, hydrated, isLoading,
+        hotels: dbHotels, activeHotel, groups, role,
+        setScope, setActiveProperty, switchToGroup,
       }}
     >
       {children}
