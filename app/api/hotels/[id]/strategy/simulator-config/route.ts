@@ -7,7 +7,8 @@ export const revalidate = 0;
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
     const data = await getSimulatorConfig(params.id);
-    return NextResponse.json({ ok: true, data });
+    const CC = { "Cache-Control": "private, max-age=300, stale-while-revalidate=60" };
+    return NextResponse.json({ ok: true, data }, { headers: CC });
   } catch (err) {
     console.error("[strategy/simulator-config]", err);
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });

@@ -32,7 +32,7 @@ export function PickupCurve() {
   const { activePropertyId } = usePortfolio();
 
   const { data: resp, isLoading, error } = useSWR<{ ok: boolean; data: PickupCurveData | null }>(
-    `/api/hotels/${activePropertyId}/forecast/pickup-curve`,
+    activePropertyId ? `/api/hotels/${activePropertyId}/forecast/pickup-curve` : null,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 300_000 }
   );

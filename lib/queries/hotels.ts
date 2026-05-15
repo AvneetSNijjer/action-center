@@ -259,7 +259,7 @@ export async function listHotels(
       }
       return mapped;
     },
-    60_000 // 1-minute cache for the hotel list
+    300_000 // 5-minute cache — matches all other query caches
   );
 }
 

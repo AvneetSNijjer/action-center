@@ -264,134 +264,133 @@ export async function getSimulatorConfig(hotelId: string): Promise<SimulatorConf
     "simulatorConfig",
     { hotelId },
     async () => {
-      // 1) Room count + elasticity + floor/ceiling from pricing_configuration
-      const cfgRows = await sql<{
-        room_count: string;
-        base_elasticity: string | null;
-        floor_price: string | null;
-        ceiling_price: string | null;
-      }>`
-        SELECT
-          COUNT(*)::text                                       AS room_count,
-          AVG(pc.base_elasticity)::text                        AS base_elasticity,
-          MIN(pc.floor_price)::text                            AS floor_price,
-          MAX(pc.ceiling_price)::text                          AS ceiling_price
-        FROM pricing_configuration pc
-        WHERE pc.hotel_id = (
-          SELECT id FROM hotels WHERE hotel_id = ${hotelId} AND deleted_at IS NULL LIMIT 1
-        )
-      `;
-      const cfg = cfgRows[0] ?? {
-        room_count: "0",
-        base_elasticity: null,
-        floor_price: null,
-        ceiling_price: null,
-      };
-      const roomTypeCount = parseInt(cfg.room_count, 10) || 0;
+      // All 5 DB queries run in parallel — dramatically faster than sequential awaits
+      const [cfgRows, invRows, dowRows, eventRows, todayRows] = await Promise.all([
+        // 1) Room count + elasticity + floor/ceiling from pricing_configuration
+        sql<{
+          room_count: string;
+          base_elasticity: string | null;
+          floor_price: string | null;
+          ceiling_price: string | null;
+        }>`
+          SELECT
+            COUNT(*)::text                    AS room_count,
+            AVG(pc.base_elasticity)::text     AS base_elasticity,
+            MIN(pc.floor_price)::text         AS floor_price,
+            MAX(pc.ceiling_price)::text       AS ceiling_price
+          FROM pricing_configuration pc
+          WHERE pc.hotel_id = (
+            SELECT id FROM hotels WHERE hotel_id = ${hotelId} AND deleted_at IS NULL LIMIT 1
+          )
+        `,
+        // 2) Total room inventory (daily average over last 30 days)
+        sql<{ total_rooms: string | null }>`
+          SELECT
+            SUM(
+              di.available_count + di.out_of_service_count + di.actual_occupancy
+            )::float / NULLIF(COUNT(DISTINCT di.inventory_date), 0)
+            AS total_rooms
+          FROM daily_inventory di
+          WHERE di.hotel_id = ${hotelId}
+            AND di.inventory_date BETWEEN CURRENT_DATE - INTERVAL '30 days' AND CURRENT_DATE
+        `,
+        // 3) DOW averages — pricing & occupancy over ±90 day window
+        sql<{
+          dow: string;
+          avg_price: string | null;
+          avg_occ: string | null;
+        }>`
+          SELECT
+            EXTRACT(DOW FROM di.inventory_date)::text AS dow,
+            AVG(COALESCE(sp.suggested_price, sp.base_rate, di.current_price))::text AS avg_price,
+            AVG(
+              CASE
+                WHEN (di.available_count + di.out_of_service_count + di.actual_occupancy) > 0
+                THEN di.actual_occupancy::float / (di.available_count + di.out_of_service_count + di.actual_occupancy)
+                ELSE NULL
+              END
+            )::text AS avg_occ
+          FROM daily_inventory di
+          LEFT JOIN suggested_prices sp
+            ON sp.hotel_id = di.hotel_id
+           AND sp.date = di.inventory_date
+           AND sp.room_type_code = di.room_type_code
+          WHERE di.hotel_id = ${hotelId}
+            AND di.inventory_date BETWEEN CURRENT_DATE - INTERVAL '90 days' AND CURRENT_DATE + INTERVAL '90 days'
+          GROUP BY EXTRACT(DOW FROM di.inventory_date)
+          ORDER BY EXTRACT(DOW FROM di.inventory_date)
+        `,
+        // 4) Events for the next 90 days
+        sql<{
+          start_dt: string;
+          title: string;
+          rank: string | null;
+          local_rank: string | null;
+          category: string;
+        }>`
+          SELECT
+            TO_CHAR(e.start, 'YYYY-MM-DD') AS start_dt,
+            e.title,
+            e.rank::text,
+            e.local_rank::text,
+            e.category
+          FROM events e
+          WHERE e.hotel_id = ${hotelId}
+            AND e.start >= CURRENT_TIMESTAMP
+            AND e.start <= CURRENT_TIMESTAMP + INTERVAL '90 days'
+          ORDER BY e.local_rank DESC NULLS LAST, e.start ASC
+          LIMIT 30
+        `,
+        // 5) Server date (so client doesn't need to infer from TZ)
+        sql<{ d: string }>`SELECT TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') AS d`,
+      ]);
+
+      // --- Process pricing config ---
+      const cfg = cfgRows[0] ?? { room_count: "0", base_elasticity: null, floor_price: null, ceiling_price: null };
+      const roomTypeCount  = parseInt(cfg.room_count, 10) || 0;
       const baseElasticity = cfg.base_elasticity ? Number(cfg.base_elasticity) : -0.5;
       const floorPrice     = cfg.floor_price     ? Number(cfg.floor_price)     : 0;
       const ceilingPrice   = cfg.ceiling_price   ? Number(cfg.ceiling_price)   : 0;
 
-      // 2) Total room inventory — sum of room counts (or COALESCE to a sensible default)
-      const invRows = await sql<{ total_rooms: string | null }>`
-        SELECT
-          SUM(
-            di.available_count + di.out_of_service_count + di.actual_occupancy
-          )::float / NULLIF(COUNT(DISTINCT di.inventory_date), 0)
-          AS total_rooms
-        FROM daily_inventory di
-        WHERE di.hotel_id = ${hotelId}
-          AND di.inventory_date BETWEEN CURRENT_DATE - INTERVAL '30 days' AND CURRENT_DATE
-      `;
+      // --- Process room inventory ---
       const totalRooms = Math.round(Number(invRows[0]?.total_rooms ?? 0)) || roomTypeCount * 10 || 100;
 
-      // 3) DOW averages — pricing & occupancy over the last 90 days
-      const dowRows = await sql<{
-        dow: string;
-        avg_price: string | null;
-        avg_occ: string | null;
-      }>`
-        SELECT
-          EXTRACT(DOW FROM di.inventory_date)::text             AS dow,
-          AVG(COALESCE(sp.suggested_price, sp.base_rate, di.current_price))::text AS avg_price,
-          AVG(
-            CASE
-              WHEN (di.available_count + di.out_of_service_count + di.actual_occupancy) > 0
-              THEN di.actual_occupancy::float / (di.available_count + di.out_of_service_count + di.actual_occupancy)
-              ELSE NULL
-            END
-          )::text                                               AS avg_occ
-        FROM daily_inventory di
-        LEFT JOIN suggested_prices sp
-          ON sp.hotel_id = di.hotel_id
-         AND sp.date     = di.inventory_date
-         AND sp.room_type_code = di.room_type_code
-        WHERE di.hotel_id = ${hotelId}
-          AND di.inventory_date BETWEEN CURRENT_DATE - INTERVAL '90 days' AND CURRENT_DATE + INTERVAL '90 days'
-        GROUP BY EXTRACT(DOW FROM di.inventory_date)
-        ORDER BY EXTRACT(DOW FROM di.inventory_date)
-      `;
-
-      const dowBasePrice    = [0, 0, 0, 0, 0, 0, 0];
+      // --- Process DOW averages ---
+      const dowBasePrice     = [0, 0, 0, 0, 0, 0, 0];
       const dowBaseOccupancy = [0, 0, 0, 0, 0, 0, 0];
       for (const r of dowRows) {
         const idx = parseInt(r.dow, 10);
         if (idx >= 0 && idx <= 6) {
-          dowBasePrice[idx]    = Math.round(Number(r.avg_price ?? 0));
+          dowBasePrice[idx]     = Math.round(Number(r.avg_price ?? 0));
           dowBaseOccupancy[idx] = Number((Number(r.avg_occ ?? 0)).toFixed(3));
         }
       }
-
-      // If any DOW is missing, fill from the median of present values to avoid zeros
+      // Fill missing DOWs from median to avoid zeros
       const presentPrices = dowBasePrice.filter((v) => v > 0);
       const presentOccs   = dowBaseOccupancy.filter((v) => v > 0);
       const medianPrice = presentPrices.length
-        ? presentPrices.sort((a, b) => a - b)[Math.floor(presentPrices.length / 2)]
-        : 0;
+        ? presentPrices.sort((a, b) => a - b)[Math.floor(presentPrices.length / 2)] : 0;
       const medianOcc = presentOccs.length
-        ? presentOccs.sort((a, b) => a - b)[Math.floor(presentOccs.length / 2)]
-        : 0;
+        ? presentOccs.sort((a, b) => a - b)[Math.floor(presentOccs.length / 2)] : 0;
       for (let i = 0; i < 7; i++) {
-        if (dowBasePrice[i] === 0) dowBasePrice[i] = medianPrice;
+        if (dowBasePrice[i] === 0)     dowBasePrice[i]     = medianPrice;
         if (dowBaseOccupancy[i] === 0) dowBaseOccupancy[i] = medianOcc;
       }
 
-      // 4) Events for the next 90 days — name/start/rank/labels
-      const eventRows = await sql<{
-        start_dt: string;
-        title: string;
-        rank: string | null;
-        local_rank: string | null;
-        category: string;
-      }>`
-        SELECT
-          TO_CHAR(e.start, 'YYYY-MM-DD') AS start_dt,
-          e.title,
-          e.rank::text,
-          e.local_rank::text,
-          e.category
-        FROM events e
-        WHERE e.hotel_id = ${hotelId}
-          AND e.start >= CURRENT_TIMESTAMP
-          AND e.start <= CURRENT_TIMESTAMP + INTERVAL '90 days'
-        ORDER BY e.local_rank DESC NULLS LAST, e.start ASC
-        LIMIT 30
-      `;
-
+      // --- Process events ---
       const events: SimulatorEvent[] = eventRows.map((e) => {
         const localRank = Number(e.local_rank) || 0;
-        // Derive boost from local_rank: rank 0-100 → boost 0-0.35
         const boost = Math.min(0.35, (localRank / 100) * 0.35);
         return {
-          date: e.start_dt,
-          name: e.title,
+          date:  e.start_dt,
+          name:  e.title,
           boost: Number(boost.toFixed(3)),
-          tag: e.category ? e.category.split("-").map(w => w[0]?.toUpperCase() + w.slice(1)).join(" ") : "Event",
+          tag:   e.category
+            ? e.category.split("-").map(w => w[0]?.toUpperCase() + w.slice(1)).join(" ")
+            : "Event",
         };
       });
 
-      // 5) Today (server's date, YYYY-MM-DD)
-      const todayRows = await sql<{ d: string }>`SELECT TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') AS d`;
       const todayIso = todayRows[0]?.d ?? new Date().toISOString().slice(0, 10);
 
       return {

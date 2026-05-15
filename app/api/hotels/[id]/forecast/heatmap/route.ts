@@ -32,11 +32,12 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const CC = { "Cache-Control": "private, max-age=300, stale-while-revalidate=60" };
     if (params.id === MERITON_KENT_HOTEL_ID) {
-      return NextResponse.json({ ok: true, data: mkHeatmapFixture() });
+      return NextResponse.json({ ok: true, data: mkHeatmapFixture() }, { headers: CC });
     }
     const data = await getHeatmapData(params.id);
-    return NextResponse.json({ ok: true, data });
+    return NextResponse.json({ ok: true, data }, { headers: CC });
   } catch (err) {
     console.error("[GET /api/hotels/[id]/forecast/heatmap]", err);
     return NextResponse.json(

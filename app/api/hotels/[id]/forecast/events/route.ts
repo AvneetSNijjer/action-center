@@ -8,6 +8,7 @@ function daysOut(n: number) {
   return new Date(Date.now() + n * 86400000).toISOString();
 }
 
+// Fixture includes ALL fields required by UpcomingEventRow to prevent runtime crashes
 const MERITON_KENT_EVENTS = [
   {
     eventId: "mk-e1",
@@ -15,13 +16,16 @@ const MERITON_KENT_EVENTS = [
     category: "concerts",
     startDate: daysOut(17),
     endDate: daysOut(17),
-    phqAttendance: 19500,
+    durationDays: 1,
     distanceKm: 1.4,
+    rank: 88,
     localRank: 88,
-    predictedSpend: 1_200_000,
+    phqLabels: ["concerts", "music", "entertainment"],
     impact: "high" as const,
     demandFlag: true,
-    impactTotal: 180,
+    avgBaseRate: 285,
+    avgSuggestedPrice: 348,
+    pricingRatio: 1.221,
   },
   {
     eventId: "mk-e2",
@@ -29,13 +33,16 @@ const MERITON_KENT_EVENTS = [
     category: "conferences",
     startDate: daysOut(8),
     endDate: daysOut(12),
-    phqAttendance: 12000,
+    durationDays: 5,
     distanceKm: 0.8,
+    rank: 82,
     localRank: 82,
-    predictedSpend: 2_400_000,
+    phqLabels: ["conferences", "technology", "business"],
     impact: "high" as const,
     demandFlag: true,
-    impactTotal: 165,
+    avgBaseRate: 310,
+    avgSuggestedPrice: 372,
+    pricingRatio: 1.200,
   },
   {
     eventId: "mk-e3",
@@ -43,13 +50,16 @@ const MERITON_KENT_EVENTS = [
     category: "expos",
     startDate: daysOut(22),
     endDate: daysOut(26),
-    phqAttendance: 157000,
+    durationDays: 5,
     distanceKm: 3.2,
+    rank: 91,
     localRank: 91,
-    predictedSpend: 8_700_000,
+    phqLabels: ["expos", "garden", "royalty"],
     impact: "high" as const,
     demandFlag: true,
-    impactTotal: 200,
+    avgBaseRate: 340,
+    avgSuggestedPrice: 442,
+    pricingRatio: 1.300,
   },
   {
     eventId: "mk-e4",
@@ -57,13 +67,16 @@ const MERITON_KENT_EVENTS = [
     category: "sports",
     startDate: daysOut(4),
     endDate: daysOut(4),
-    phqAttendance: 60000,
+    durationDays: 1,
     distanceKm: 5.1,
+    rank: 76,
     localRank: 76,
-    predictedSpend: 980_000,
+    phqLabels: ["sports", "football", "premier-league"],
     impact: "medium" as const,
     demandFlag: false,
-    impactTotal: 120,
+    avgBaseRate: 285,
+    avgSuggestedPrice: 313,
+    pricingRatio: 1.098,
   },
   {
     eventId: "mk-e5",
@@ -71,13 +84,16 @@ const MERITON_KENT_EVENTS = [
     category: "performing-arts",
     startDate: daysOut(29),
     endDate: daysOut(29),
-    phqAttendance: 3800,
+    durationDays: 1,
     distanceKm: 1.9,
+    rank: 63,
     localRank: 63,
-    predictedSpend: 145_000,
+    phqLabels: ["performing-arts", "music", "jazz"],
     impact: "low" as const,
     demandFlag: false,
-    impactTotal: 55,
+    avgBaseRate: 285,
+    avgSuggestedPrice: 291,
+    pricingRatio: 1.021,
   },
 ];
 
@@ -86,11 +102,12 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const CC = { "Cache-Control": "private, max-age=300, stale-while-revalidate=60" };
     if (params.id === MERITON_KENT_HOTEL_ID) {
-      return NextResponse.json({ ok: true, data: MERITON_KENT_EVENTS });
+      return NextResponse.json({ ok: true, data: MERITON_KENT_EVENTS }, { headers: CC });
     }
     const data = await getUpcomingEvents(params.id);
-    return NextResponse.json({ ok: true, data });
+    return NextResponse.json({ ok: true, data }, { headers: CC });
   } catch (err) {
     console.error("[GET /api/hotels/[id]/forecast/events]", err);
     return NextResponse.json(

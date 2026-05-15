@@ -41,7 +41,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, data: slim, meta: { role, total: slim.length } });
     }
 
-    return NextResponse.json({ ok: true, data: hotels, meta: { role, total: hotels.length } });
+    const CC = { "Cache-Control": "private, max-age=300, stale-while-revalidate=60" };
+    return NextResponse.json({ ok: true, data: hotels, meta: { role, total: hotels.length } }, { headers: CC });
   } catch (err) {
     console.error("[GET /api/hotels]", err);
     return NextResponse.json(
