@@ -1,4 +1,5 @@
 "use client";
+import * as React from "react";
 import { motion } from "framer-motion";
 import {
   Percent,
@@ -9,11 +10,40 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { PORTFOLIO_ROLLUP } from "@/lib/portfolio";
+import { usePortfolio } from "@/components/portfolio-provider";
 import { cn, formatCurrency } from "@/lib/utils";
 
 export function PortfolioKpiStrip() {
-  const r = PORTFOLIO_ROLLUP;
+  const { hotels } = usePortfolio();
+
+  // Weighted portfolio rollup from live DB hotels
+  const r = React.useMemo(() => {
+    const withKpis = hotels.filter((h) => h.occupancy != null || h.adr != null || h.revpar != null);
+    const count = withKpis.length;
+
+    if (count === 0) {
+      return { occupancy: 0, adr: 0, revpar: 0, openActions: 0, criticalActions: 0, totalProperties: hotels.length };
+    }
+
+    // Simple equally-weighted average (no per-property room count in HotelRow)
+    const sum = (key: "occupancy" | "adr" | "revpar") =>
+      withKpis.reduce((s, h) => s + (h[key] ?? 0), 0);
+
+    const occupancy = sum("occupancy") / count;
+    const adr       = sum("adr") / count;
+    const revpar    = sum("revpar") / count;
+    const openActions = hotels.reduce((s, h) => s + (h.pendingApprovals ?? 0), 0);
+
+    return {
+      occupancy: Number(occupancy.toFixed(1)),
+      adr:       Math.round(adr),
+      revpar:    Number(revpar.toFixed(1)),
+      openActions,
+      criticalActions: 0,
+      totalProperties: hotels.length,
+    };
+  }, [hotels]);
+
   return (
     <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
       <Kpi
@@ -21,41 +51,45 @@ export function PortfolioKpiStrip() {
         Icon={Percent}
         label="Portfolio Occupancy"
         value={`${r.occupancy.toFixed(1)}%`}
-        delta={`+${r.occupancyDeltaLy.toFixed(1)} pts vs LY`}
+        delta={`${r.totalProperties} properties`}
         accent="bg-emerald-500"
+        deltaTone="text-muted-foreground"
       />
       <Kpi
         index={1}
         Icon={DollarSign}
         label="Portfolio ADR"
         value={formatCurrency(r.adr)}
-        delta={`+${formatCurrency(r.adrDeltaLy)} vs LY`}
+        delta="30-day average"
         accent="bg-brand-500"
+        deltaTone="text-muted-foreground"
       />
       <Kpi
         index={2}
         Icon={TrendingUp}
         label="Portfolio RevPAR"
         value={formatCurrency(r.revpar)}
-        delta={`+${r.revparDeltaLy.toFixed(1)}% vs LY`}
+        delta="30-day average"
         accent="bg-violet-500"
+        deltaTone="text-muted-foreground"
       />
       <Kpi
         index={3}
         Icon={Wallet}
-        label="Total Revenue (MTD)"
-        value={compactMoney(r.revenueMtd)}
-        delta={`+${r.revenueToBudget}% to budget`}
+        label="Properties live"
+        value={String(r.totalProperties)}
+        delta="live from DB"
         accent="bg-indigo-500"
+        deltaTone="text-muted-foreground"
       />
       <Kpi
         index={4}
         Icon={AlertOctagon}
         label="Open Actions"
         value={String(r.openActions)}
-        delta={`${r.criticalActions} critical`}
-        accent={r.criticalActions > 0 ? "bg-red-500" : "bg-amber-500"}
-        deltaTone={r.criticalActions > 0 ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"}
+        delta={`${r.totalProperties} properties`}
+        accent={r.openActions > 0 ? "bg-red-500" : "bg-amber-500"}
+        deltaTone={r.openActions > 0 ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"}
       />
     </div>
   );

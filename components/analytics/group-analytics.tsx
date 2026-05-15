@@ -212,56 +212,32 @@ export function GroupAnalytics() {
         </div>
       )}
 
-      {/* Portfolio channel mix */}
+      {/* Portfolio channel mix — fallback notice (booking_source unavailable) */}
       <Card>
         <CardHeader>
           <CardTitle>Portfolio channel mix over time</CardTitle>
           <CardDescription>
-            Revenue share by channel, rolled up across all properties.
+            Revenue share by booking source across the portfolio.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-            className="h-56 w-full"
-          >
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={CHANNEL_MIX} margin={{ top: 10, right: 8, bottom: 0, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="week" stroke="hsl(var(--muted-foreground))" fontSize={11} />
-                <YAxis
-                  stroke="hsl(var(--muted-foreground))"
-                  fontSize={11}
-                  tickFormatter={(v) => `${v}%`}
-                  domain={[0, 100]}
-                />
-                <Tooltip
-                  contentStyle={{
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: 8,
-                    background: "hsl(var(--popover))",
-                    fontSize: 12,
-                  }}
-                  formatter={(v: any) => `${v}%`}
-                />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                {channels.map((c) => (
-                  <Bar
-                    key={c.key}
-                    dataKey={c.key}
-                    stackId="mix"
-                    fill={c.color}
-                    name={c.label}
-                    isAnimationActive={false}
-                  />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </motion.div>
+          <div className="flex h-56 items-center justify-center flex-col gap-3 rounded-lg border border-dashed border-amber-200 dark:border-amber-800/50 bg-amber-50/40 dark:bg-amber-950/15 p-6 text-center">
+            <div className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/40">
+              <Layers className="h-4 w-4 text-amber-700 dark:text-amber-300" />
+            </div>
+            <div className="max-w-md">
+              <div className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                Channel data unavailable
+              </div>
+              <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400 leading-relaxed">
+                No <code className="font-mono">booking_source</code> column is present in the
+                PMS feed for these properties — direct / OTA breakdown cannot be computed.
+                Surfaces once channel data is wired in.
+              </p>
+            </div>
+          </div>
           <div className="mt-2 text-[10px] text-muted-foreground">
-            Source: reservations.booking_source aggregated across all properties
+            Source would be <code className="font-mono">reservations.booking_source</code> (not in this feed)
           </div>
         </CardContent>
       </Card>

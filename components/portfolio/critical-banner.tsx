@@ -1,17 +1,26 @@
 "use client";
+import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { AlertOctagon, ChevronRight } from "lucide-react";
-import { getCriticalProperties } from "@/lib/portfolio";
 import { usePortfolio } from "@/components/portfolio-provider";
 import { Button } from "@/components/ui/button";
 
 export function CriticalBanner() {
-  const criticals = getCriticalProperties();
   const router = useRouter();
-  const { setActiveProperty } = usePortfolio();
+  const { hotels, setActiveProperty } = usePortfolio();
+
+  // Live critical = hotels with the highest pending-approval counts (top 3)
+  const criticals = React.useMemo(() => {
+    return [...hotels]
+      .filter((h) => (h.pendingApprovals ?? 0) > 50)
+      .sort((a, b) => (b.pendingApprovals ?? 0) - (a.pendingApprovals ?? 0))
+      .slice(0, 3);
+  }, [hotels]);
 
   if (criticals.length === 0) return null;
+
+  const totalPending = criticals.reduce((a, h) => a + (h.pendingApprovals ?? 0), 0);
 
   const open = (id: string) => {
     setActiveProperty(id, { switchToProperty: true });
@@ -31,12 +40,10 @@ export function CriticalBanner() {
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-red-900 dark:text-red-200">
-            {criticals.length} propert{criticals.length === 1 ? "y needs" : "ies need"} your attention
+            {criticals.length} propert{criticals.length === 1 ? "y has" : "ies have"} a heavy approval backlog
           </div>
           <div className="text-[12px] text-red-700/80 dark:text-red-300/80 mt-0.5">
-            {criticals.reduce((a, p) => a + p.criticalActions, 0)} critical action
-            {criticals.reduce((a, p) => a + p.criticalActions, 0) === 1 ? "" : "s"} pending across
-            the portfolio.
+            {totalPending.toLocaleString()} pending rate review{totalPending === 1 ? "" : "s"} concentrated in these properties.
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
