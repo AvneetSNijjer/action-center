@@ -16,9 +16,9 @@ import {
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { HOTEL_GROUP, PORTFOLIO_ROLLUP, STATUS_META, type Property } from "@/lib/portfolio";
-import { PERFORMANCE_INDICES, CHANNEL_MIX } from "@/lib/analytics-data";
-import { usePortfolio } from "@/components/portfolio-provider";
+import { STATUS_META, type Property } from "@/lib/portfolio";
+import { CHANNEL_MIX } from "@/lib/analytics-data";
+import { usePortfolio, hotelRowToProperty } from "@/components/portfolio-provider";
 import { cn, formatCurrency } from "@/lib/utils";
 
 const channels = [
@@ -33,12 +33,18 @@ type SortKey = "name" | "occupancy" | "adr" | "revpar" | "revenue" | "pace" | "a
 
 export function GroupAnalytics() {
   const router = useRouter();
-  const { setActiveProperty } = usePortfolio();
+  const { hotels: dbHotels, setActiveProperty } = usePortfolio();
   const [sortKey, setSortKey] = React.useState<SortKey>("revpar");
   const [sortDir, setSortDir] = React.useState<"asc" | "desc">("desc");
 
+  // Convert DB hotels to Property objects for display
+  const properties: Property[] = React.useMemo(
+    () => dbHotels.map((h) => hotelRowToProperty(h)),
+    [dbHotels]
+  );
+
   const sorted = React.useMemo(() => {
-    const list = [...HOTEL_GROUP.properties];
+    const list = [...properties];
     const dir = sortDir === "asc" ? 1 : -1;
     list.sort((a, b) => {
       const va = pick(a, sortKey);
@@ -47,10 +53,10 @@ export function GroupAnalytics() {
       return ((va as number) - (vb as number)) * dir;
     });
     return list;
-  }, [sortKey, sortDir]);
+  }, [properties, sortKey, sortDir]);
 
-  const best = [...HOTEL_GROUP.properties].sort((a, b) => b.kpis.revpar - a.kpis.revpar)[0];
-  const worst = [...HOTEL_GROUP.properties].sort((a, b) => a.kpis.paceVsStly - b.kpis.paceVsStly)[0];
+  const best  = [...properties].sort((a, b) => (b.kpis.revpar ?? 0) - (a.kpis.revpar ?? 0))[0];
+  const worst = [...properties].sort((a, b) => (a.kpis.occupancy ?? 0) - (b.kpis.occupancy ?? 0))[0];
 
   const toggle = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -185,24 +191,26 @@ export function GroupAnalytics() {
       </Card>
 
       {/* Best / Worst */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <Highlight
-          Icon={Trophy}
-          tone="emerald"
-          label="Top performer"
-          property={best}
-          metric={`RevPAR ${formatCurrency(best.kpis.revpar)}`}
-          onDrillIn={drillIn}
-        />
-        <Highlight
-          Icon={AlertTriangle}
-          tone="red"
-          label="Needs the most attention"
-          property={worst}
-          metric={`Pace ${worst.kpis.paceVsStly > 0 ? "+" : ""}${worst.kpis.paceVsStly.toFixed(1)}% vs STLY`}
-          onDrillIn={drillIn}
-        />
-      </div>
+      {best && worst && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <Highlight
+            Icon={Trophy}
+            tone="emerald"
+            label="Top performer (by RevPAR)"
+            property={best}
+            metric={best.kpis.revpar ? `RevPAR ${formatCurrency(best.kpis.revpar)}` : "No RevPAR data"}
+            onDrillIn={drillIn}
+          />
+          <Highlight
+            Icon={AlertTriangle}
+            tone="red"
+            label="Lowest occupancy"
+            property={worst}
+            metric={worst.kpis.occupancy ? `${worst.kpis.occupancy.toFixed(1)}% occupancy (30d)` : "No occupancy data"}
+            onDrillIn={drillIn}
+          />
+        </div>
+      )}
 
       {/* Portfolio channel mix */}
       <Card>

@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Inbox, ChevronLeft, Loader2, ChevronDown, Eye } from "lucide-react";
 import useSWR from "swr";
 import type { Insight, Severity, InsightType } from "@/lib/types";
-import { StatsOverview } from "@/components/stats-overview";
+import { StatsOverview, type ActionSummary } from "@/components/stats-overview";
 import { MorningBriefing } from "@/components/morning-briefing";
 import { StrategyIndicator } from "@/components/strategy-indicator";
 import { PendingApprovalsWidget } from "@/components/pending-approvals";
@@ -321,6 +321,14 @@ export function PropertyActionCenter() {
   );
   const livePublishingHealth = pubHealthRes?.ok ? pubHealthRes.data : null;
 
+  // ── Action summary (real pending/approved/denied counts) ──────
+  const { data: actionSummaryRes } = useSWR<{ ok: boolean; data: ActionSummary }>(
+    "/api/actions/summary",
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 300_000 }
+  );
+  const liveActionSummary = actionSummaryRes?.ok ? actionSummaryRes.data : null;
+
   // ── Map DB InsightRows → UI Insights ─────────────────────────
   const hotelName = activeHotel?.name ?? activePropertyId ?? "Property";
   const dbInsights: Insight[] = React.useMemo(() => {
@@ -467,6 +475,7 @@ export function PropertyActionCenter() {
         counts={counts}
         revenueImpact={totalRevenueImpact}
         pendingApprovals={liveApprovals?.length ?? activeHotel?.pendingApprovals}
+        actionSummary={liveActionSummary}
       />
 
       {approvalsLoading && !liveApprovals ? (

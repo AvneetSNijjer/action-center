@@ -349,14 +349,18 @@ export interface UpcomingEventRow {
   category: string;
   startDate: string;   // ISO
   endDate: string;     // ISO
-  phqAttendance: number;
+  durationDays: number;
   distanceKm: number;
+  rank: number;
   localRank: number;
-  predictedSpend: number;
+  phqLabels: string[];
   impact: "high" | "medium" | "low";
+  // Pricing context — avg suggested vs base rate across event dates
+  avgBaseRate: number | null;
+  avgSuggestedPrice: number | null;
+  pricingRatio: number | null;    // suggestedPrice / baseRate, null if no data
   // from daily_hotel_demand (if row exists for start date)
   demandFlag: boolean;
-  impactTotal: number | null;
 }
 
 export async function getUpcomingEvents(hotelId: string): Promise<UpcomingEventRow[]> {
@@ -367,25 +371,42 @@ export async function getUpcomingEvents(hotelId: string): Promise<UpcomingEventR
       category: string;
       start_dt: string;
       end_dt: string;
-      phq_attendance: string | null;
+      duration_days: string;
       distance_km: string | null;
+      rank: string | null;
       local_rank: string | null;
-      predicted_spend: string | null;
+      phq_labels: string | null;
       demand_flag: string | null;
-      impact_total: string | null;
+      avg_base_rate: string | null;
+      avg_suggested: string | null;
     }>`
       SELECT
         e.event_id,
         e.title,
         e.category,
-        e.start::text AS start_dt,
-        e."end"::text AS end_dt,
-        e.phq_attendance::text,
+        e.start::text                              AS start_dt,
+        e."end"::text                              AS end_dt,
+        GREATEST(1, (e."end"::date - e.start::date) + 1)::text AS duration_days,
         e.distance_km::text,
+        e.rank::text,
         e.local_rank::text,
-        e.predicted_accommodation_spend::text AS predicted_spend,
-        dhd.price_flag::text AS demand_flag,
-        dhd.impact_total::text
+        e.phq_labels::text                         AS phq_labels,
+        dhd.price_flag::text                       AS demand_flag,
+        -- Pricing signal: avg across all room types for the event date range
+        (
+          SELECT AVG(sp.base_rate)::text
+          FROM suggested_prices sp
+          WHERE sp.hotel_id = e.hotel_id
+            AND sp.date::date BETWEEN e.start::date AND e."end"::date
+            AND sp.base_rate IS NOT NULL
+        ) AS avg_base_rate,
+        (
+          SELECT AVG(COALESCE(sp.suggested_price, sp.base_rate))::text
+          FROM suggested_prices sp
+          WHERE sp.hotel_id = e.hotel_id
+            AND sp.date::date BETWEEN e.start::date AND e."end"::date
+            AND sp.base_rate IS NOT NULL
+        ) AS avg_suggested
       FROM events e
       LEFT JOIN daily_hotel_demand dhd
         ON dhd.hotel_id = e.hotel_id
@@ -393,35 +414,50 @@ export async function getUpcomingEvents(hotelId: string): Promise<UpcomingEventR
       WHERE e.hotel_id = ${hotelId}
         AND e.start >= CURRENT_TIMESTAMP
         AND e.start <= CURRENT_TIMESTAMP + INTERVAL '30 days'
-      ORDER BY e.start ASC
+      ORDER BY e.local_rank DESC, e.start ASC
       LIMIT 20
     `;
 
     return rows.map((r) => {
-      const rank = Number(r.local_rank) || 0;
-      const attendance = Number(r.phq_attendance) || 0;
-      const spend = Number(r.predicted_spend) || 0;
-      // Derive impact from local_rank + attendance
+      const rank      = Number(r.rank) || 0;
+      const localRank = Number(r.local_rank) || 0;
+      const duration  = Number(r.duration_days) || 1;
+
+      // Parse phq_labels JSON array
+      let phqLabels: string[] = [];
+      try {
+        if (r.phq_labels) {
+          const parsed = JSON.parse(r.phq_labels);
+          phqLabels = Array.isArray(parsed) ? parsed.map(String) : [];
+        }
+      } catch { /* ignore */ }
+
+      // Derive impact from local_rank
       const impact: "high" | "medium" | "low" =
-        rank >= 80 || attendance >= 10000 || spend >= 500000
-          ? "high"
-          : rank >= 60 || attendance >= 3000 || spend >= 100000
-          ? "medium"
-          : "low";
+        localRank >= 70 ? "high" : localRank >= 50 ? "medium" : "low";
+
+      const avgBase      = r.avg_base_rate     != null ? Number(r.avg_base_rate)  : null;
+      const avgSuggested = r.avg_suggested     != null ? Number(r.avg_suggested)  : null;
+      const pricingRatio = avgBase && avgBase > 0 && avgSuggested
+        ? Number((avgSuggested / avgBase).toFixed(3))
+        : null;
 
       return {
-        eventId: r.event_id,
-        title: r.title,
-        category: r.category,
-        startDate: r.start_dt,
-        endDate: r.end_dt,
-        phqAttendance: attendance,
-        distanceKm: Number(r.distance_km) || 0,
-        localRank: rank,
-        predictedSpend: spend,
+        eventId:          r.event_id,
+        title:            r.title,
+        category:         r.category,
+        startDate:        r.start_dt,
+        endDate:          r.end_dt,
+        durationDays:     duration,
+        distanceKm:       Number(r.distance_km) || 0,
+        rank,
+        localRank,
+        phqLabels,
         impact,
-        demandFlag: r.demand_flag === "true",
-        impactTotal: r.impact_total !== null ? Number(r.impact_total) : null,
+        avgBaseRate:      avgBase,
+        avgSuggestedPrice: avgSuggested,
+        pricingRatio,
+        demandFlag:       r.demand_flag === "true",
       };
     });
   });
