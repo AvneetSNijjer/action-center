@@ -17,7 +17,6 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { STATUS_META, type Property } from "@/lib/portfolio";
-import { CHANNEL_MIX } from "@/lib/analytics-data";
 import { usePortfolio, hotelRowToProperty } from "@/components/portfolio-provider";
 import { cn, formatCurrency } from "@/lib/utils";
 

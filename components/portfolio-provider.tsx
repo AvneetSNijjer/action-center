@@ -46,16 +46,28 @@ const fetcher = (url: string) =>
   });
 
 /** Convert a DB HotelRow to a mock-compatible Property (best-effort). */
+/** Derive property status from live KPI data. */
+function deriveStatus(h: HotelRow): "critical" | "needs_review" | "on_track" {
+  const pending = h.pendingApprovals ?? 0;
+  const occ     = h.occupancy ?? null;
+  if (pending > 100 || (occ !== null && occ < 30)) return "critical";
+  if (pending > 20  || (occ !== null && occ < 55)) return "needs_review";
+  return "on_track";
+}
+
 export function hotelRowToProperty(h: HotelRow): Property {
+  const status = deriveStatus(h);
+  // Critical actions = pending approvals that pushed status to critical
+  const criticalActions = status === "critical" ? h.pendingApprovals : 0;
   return {
     id: h.id,
     name: h.name,
     city: h.city,
     state: h.state,
     rooms: 0,
-    status: "on_track",
+    status,
     openActions: h.pendingApprovals,
-    criticalActions: 0,
+    criticalActions,
     strategyMode: "maximize_revenue",
     kpis: {
       occupancy: h.occupancy ?? 0,
