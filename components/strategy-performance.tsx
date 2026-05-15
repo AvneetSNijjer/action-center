@@ -1,76 +1,124 @@
 "use client";
+import * as React from "react";
+import useSWR from "swr";
 import { motion } from "framer-motion";
 import { ResponsiveContainer, RadialBarChart, RadialBar, PolarAngleAxis } from "recharts";
-import { TrendingUp, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, Info } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { useStrategy } from "@/components/strategy-provider";
-import { STRATEGY_ACTUALS } from "@/lib/strategy";
+import { usePortfolio } from "@/components/portfolio-provider";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { HotelRow } from "@/lib/queries/hotels";
+import type { StrategyPerformanceRow } from "@/lib/queries/strategy";
+
+const fetcher = (url: string) =>
+  fetch(url).then((r) => {
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  });
 
 export function StrategyPerformance({
   liveKpis,
 }: {
-  /** Live hotel KPIs from DB. When provided, occupancy and ADR are sourced from DB. */
+  /** Live hotel KPIs from DB. Used as fallback for MTD occupancy/ADR. */
   liveKpis?: HotelRow | null;
 }) {
   const { config } = useStrategy();
-  const a = {
-    ...STRATEGY_ACTUALS,
-    // Override with live data if available
-    mtdOccupancy: liveKpis?.occupancy ?? STRATEGY_ACTUALS.mtdOccupancy,
-    currentAdr: liveKpis?.adr ?? STRATEGY_ACTUALS.currentAdr,
-  };
+  const { activePropertyId } = usePortfolio();
+
+  const { data: perfRes, isLoading } = useSWR<{
+    ok: boolean;
+    data: StrategyPerformanceRow;
+  }>(
+    activePropertyId ? `/api/hotels/${activePropertyId}/strategy/performance` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 300_000 }
+  );
+
+  const livePerf = perfRes?.ok ? perfRes.data : null;
+
+  // Use live performance data, falling back to liveKpis (hotel-level) where available
+  const mtdRevenue        = livePerf?.mtdRevenue ?? 0;
+  const mtdOccupancy      = livePerf?.mtdOccupancy ?? (liveKpis?.occupancy ?? 0);
+  const currentAdr        = livePerf?.currentAdr ?? (liveKpis?.adr ?? 0);
+  const daysIntoMonth     = livePerf?.daysIntoMonth ?? 1;
+  const daysInMonth       = livePerf?.daysInMonth ?? 30;
+  const eomProjection     = livePerf?.forecastEomRevenue ?? 0;
+  const directShare       = livePerf?.directBookingShare; // may be null
+  const samples           = livePerf?.samples ?? 0;
+
   const g = config.goals;
 
-  // Project end-of-month revenue at current pace
-  const dailyRunRate = a.mtdRevenue / a.daysIntoMonth;
-  const eomProjection = dailyRunRate * a.daysInMonth;
-  const revenuePct = Math.min(100, (eomProjection / g.monthlyRevenueTarget) * 100);
-  const occPct = Math.min(100, (a.mtdOccupancy / g.targetOccupancy) * 100);
-  const directPct = Math.min(100, (a.directBookingShare / g.directBookingTarget) * 100);
-  const adrInRange = a.currentAdr >= g.adrFloor && a.currentAdr <= g.adrCeiling;
-  const adrPosition = ((a.currentAdr - g.adrFloor) / (g.adrCeiling - g.adrFloor)) * 100;
+  const revenuePct = g.monthlyRevenueTarget > 0
+    ? Math.min(100, (eomProjection / g.monthlyRevenueTarget) * 100)
+    : 0;
+  const occPct = g.targetOccupancy > 0
+    ? Math.min(100, (mtdOccupancy / g.targetOccupancy) * 100)
+    : 0;
+  const directPct = directShare != null && g.directBookingTarget > 0
+    ? Math.min(100, (directShare / g.directBookingTarget) * 100)
+    : null;
+  const adrInRange = currentAdr >= g.adrFloor && currentAdr <= g.adrCeiling;
+  const adrPosition = g.adrCeiling > g.adrFloor
+    ? ((currentAdr - g.adrFloor) / (g.adrCeiling - g.adrFloor)) * 100
+    : 0;
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Strategy Performance</CardTitle>
         <CardDescription>
-          Live progress toward your goals. Green = on track · Amber = close behind · Red = behind.
+          Live MTD progress toward your goals. Green = on track · Amber = close behind · Red = behind.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Gauge
-            label="Revenue target"
-            primary={formatCurrency(eomProjection)}
-            secondary={`of ${formatCurrency(g.monthlyRevenueTarget)} target`}
-            pct={revenuePct}
-            footnote={`MTD: ${formatCurrency(a.mtdRevenue)} (day ${a.daysIntoMonth}/${a.daysInMonth})`}
-          />
-          <Gauge
-            label="Occupancy"
-            primary={`${a.mtdOccupancy.toFixed(1)}%`}
-            secondary={`of ${g.targetOccupancy}% target`}
-            pct={occPct}
-            footnote="MTD running average"
-          />
-          <AdrRange
-            currentAdr={a.currentAdr}
-            floor={g.adrFloor}
-            ceiling={g.adrCeiling}
-            position={adrPosition}
-            inRange={adrInRange}
-          />
-          <Gauge
-            label="Direct booking"
-            primary={`${a.directBookingShare.toFixed(1)}%`}
-            secondary={`of ${g.directBookingTarget}% target`}
-            pct={directPct}
-            footnote="Last 30-day share"
-          />
-        </div>
+        {isLoading && !livePerf ? (
+          <div className="flex h-32 items-center justify-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading live performance data…
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Gauge
+                label="Revenue target"
+                primary={formatCurrency(eomProjection)}
+                secondary={`of ${formatCurrency(g.monthlyRevenueTarget)} target`}
+                pct={revenuePct}
+                footnote={`MTD: ${formatCurrency(mtdRevenue)} (day ${daysIntoMonth}/${daysInMonth})`}
+              />
+              <Gauge
+                label="Occupancy"
+                primary={`${mtdOccupancy.toFixed(1)}%`}
+                secondary={`of ${g.targetOccupancy}% target`}
+                pct={occPct}
+                footnote={`MTD running average · ${samples} nights`}
+              />
+              <AdrRange
+                currentAdr={currentAdr}
+                floor={g.adrFloor}
+                ceiling={g.adrCeiling}
+                position={adrPosition}
+                inRange={adrInRange}
+              />
+              {directPct !== null ? (
+                <Gauge
+                  label="Direct booking"
+                  primary={`${(directShare ?? 0).toFixed(1)}%`}
+                  secondary={`of ${g.directBookingTarget}% target`}
+                  pct={directPct}
+                  footnote="Last 30-day share"
+                />
+              ) : (
+                <DirectShareUnavailable target={g.directBookingTarget} />
+              )}
+            </div>
+            <div className="mt-3 text-[10px] text-muted-foreground">
+              Source: <code className="font-mono">daily_inventory</code> joined to{" "}
+              <code className="font-mono">suggested_prices</code> · revenue = sold × rate · live DB
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
@@ -203,6 +251,33 @@ function AdrRange({
             Outside configured range
           </>
         )}
+      </div>
+    </motion.div>
+  );
+}
+
+function DirectShareUnavailable({ target }: { target: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: 0.15 }}
+      className="rounded-xl border border-dashed border-amber-300 dark:border-amber-800/60 bg-amber-50/40 dark:bg-amber-950/15 p-4"
+    >
+      <div className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wider">
+        Direct booking
+      </div>
+      <div className="mt-3 flex items-start gap-2">
+        <Info className="h-4 w-4 mt-0.5 text-amber-600 dark:text-amber-400 shrink-0" />
+        <div className="min-w-0">
+          <div className="text-sm font-semibold leading-tight text-amber-900 dark:text-amber-200">
+            Not reported by PMS
+          </div>
+          <div className="text-[11px] text-amber-700 dark:text-amber-400 leading-snug mt-1">
+            Booking source (direct vs OTA) is not present in this hotel&apos;s feed.
+            Target was set to {target}%. Surfaces once channel data is wired in.
+          </div>
+        </div>
       </div>
     </motion.div>
   );

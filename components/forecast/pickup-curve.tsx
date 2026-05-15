@@ -13,7 +13,7 @@ import {
   ReferenceLine,
   Cell,
 } from "recharts";
-import { Loader2, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, Info } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -122,97 +122,125 @@ export function PickupCurve() {
               />
             </div>
 
-            {/* Daily pickup bar chart */}
-            {d.dailyPickup.length > 0 ? (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
-                className="h-52 w-full"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={d.dailyPickup}
-                    margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="hsl(var(--border))"
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="date"
-                      stroke="hsl(var(--muted-foreground))"
-                      fontSize={10}
-                      tickFormatter={(v) => {
-                        const dt = new Date(v + "T00:00:00Z");
-                        return DOW_SHORT[dt.getUTCDay()];
-                      }}
-                    />
-                    <YAxis
-                      stroke="hsl(var(--muted-foreground))"
-                      fontSize={10}
-                      label={{
-                        value: "Rooms/day",
-                        angle: -90,
-                        position: "insideLeft",
-                        style: { fontSize: 9, fill: "hsl(var(--muted-foreground))" },
-                      }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: 8,
-                        background: "hsl(var(--popover))",
-                        fontSize: 12,
-                      }}
-                      formatter={(v: number, name: string) => [
-                        v,
-                        name === "pickup" ? "Rooms added yesterday" : "Total OTB",
-                      ]}
-                      labelFormatter={(label) =>
-                        new Date(label + "T00:00:00Z").toLocaleDateString("en-US", {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric",
-                          timeZone: "UTC",
-                        })
-                      }
-                    />
-                    <ReferenceLine
-                      x={d.targetDate}
-                      stroke="#0066cc"
-                      strokeDasharray="3 3"
-                      label={{
-                        value: "Target",
-                        position: "top",
-                        fontSize: 9,
-                        fill: "#0066cc",
-                      }}
-                    />
-                    <Bar dataKey="pickup" name="pickup" radius={[3, 3, 0, 0]}>
-                      {d.dailyPickup.map((entry, index) => (
-                        <Cell
-                          key={`cell-${index}`}
-                          fill={entry.pickup > 0 ? "#0066cc" : "hsl(var(--muted))"}
-                          opacity={entry.pickup > 0 ? 0.85 : 0.4}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </motion.div>
-            ) : (
+            {/* Daily chart — show pickup if available, fall back to OTB rooms */}
+            {d.dailyPickup.length > 0 ? (() => {
+              const totalPickup = d.dailyPickup.reduce((s, e) => s + (e.pickup || 0), 0);
+              const usePickup   = totalPickup > 0;
+              const chartKey    = usePickup ? "pickup" : "otb";
+              const chartLabel  = usePickup ? "Rooms added yesterday" : "Rooms on-the-books";
+              const yLabel      = usePickup ? "Rooms/day pickup" : "Rooms OTB";
+
+              // Compute capacity ceiling for visual reference
+              const maxCap = Math.max(...d.dailyPickup.map((e) => e.capacity || 0));
+
+              return (
+              <>
+                {!usePickup && (
+                  <div className="mb-2 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/40 p-2.5 text-xs text-amber-800 dark:text-amber-300">
+                    <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                    <span>
+                      <span className="font-semibold">Fallback: showing OTB rooms.</span> PMS is not
+                      sending last-day pickup increments ({" "}
+                      <code className="font-mono">actual_pickup_last_day = 0</code> for every row),
+                      so we display rooms on-the-books per stay night instead.
+                    </span>
+                  </div>
+                )}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.3 }}
+                  className="h-52 w-full"
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={d.dailyPickup}
+                      margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="hsl(var(--border))"
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey="date"
+                        stroke="hsl(var(--muted-foreground))"
+                        fontSize={10}
+                        tickFormatter={(v) => {
+                          const dt = new Date(v + "T00:00:00Z");
+                          return DOW_SHORT[dt.getUTCDay()];
+                        }}
+                      />
+                      <YAxis
+                        stroke="hsl(var(--muted-foreground))"
+                        fontSize={10}
+                        domain={usePickup ? [0, "auto"] : [0, Math.max(maxCap, 1)]}
+                        label={{
+                          value: yLabel,
+                          angle: -90,
+                          position: "insideLeft",
+                          style: { fontSize: 9, fill: "hsl(var(--muted-foreground))" },
+                        }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: 8,
+                          background: "hsl(var(--popover))",
+                          fontSize: 12,
+                        }}
+                        formatter={(v: number) => [v, chartLabel]}
+                        labelFormatter={(label) =>
+                          new Date(label + "T00:00:00Z").toLocaleDateString("en-US", {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                            timeZone: "UTC",
+                          })
+                        }
+                      />
+                      <ReferenceLine
+                        x={d.targetDate}
+                        stroke="#0066cc"
+                        strokeDasharray="3 3"
+                        label={{
+                          value: "Target",
+                          position: "top",
+                          fontSize: 9,
+                          fill: "#0066cc",
+                        }}
+                      />
+                      <Bar dataKey={chartKey} name={chartLabel} radius={[3, 3, 0, 0]} isAnimationActive={false}>
+                        {d.dailyPickup.map((entry, index) => {
+                          const v = (usePickup ? entry.pickup : entry.otb) || 0;
+                          return (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={v > 0 ? "#0066cc" : "hsl(var(--muted))"}
+                              opacity={v > 0 ? 0.85 : 0.4}
+                            />
+                          );
+                        })}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </motion.div>
+              </>
+              );
+            })() : (
               <div className="flex h-52 items-center justify-center text-sm text-muted-foreground">
-                No daily pickup data for the next 14 nights.
+                No daily inventory data for the next 14 nights.
               </div>
             )}
           </>
         )}
 
         <div className="mt-3 text-[10px] text-muted-foreground">
-          Live · daily_inventory (actual_pickup_last_day){" "}
-          {d?.stlyAvailable ? "· STLY from historical rows" : "· STLY unavailable (dataset too recent)"}
+          Live · <code className="font-mono">daily_inventory</code> ·
+          {d && d.dailyPickup.reduce((s, e) => s + e.pickup, 0) > 0
+            ? " pickup from actual_pickup_last_day"
+            : " OTB fallback (pickup unavailable)"}
+          {d?.stlyAvailable ? " · STLY from historical rows" : " · STLY unavailable (dataset too recent)"}
         </div>
       </CardContent>
     </Card>
