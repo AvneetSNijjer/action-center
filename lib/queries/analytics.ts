@@ -290,11 +290,12 @@ export interface PricingDecisionRow {
 
 export async function getPricingAuditTrail(
   hotelId: string,
-  limit = 50
+  limit = 50,
+  days = 90
 ): Promise<PricingDecisionRow[]> {
   return cached(
     "pricingAudit",
-    { hotelId, limit },
+    { hotelId, limit, days },
     async () => {
       const rows = await sql<{
         id:                  string;
@@ -330,7 +331,7 @@ export async function getPricingAuditTrail(
             OR auto_publish_status = 'published'
             OR status IN ('approved', 'published')
           )
-          AND date >= CURRENT_DATE - 90
+          AND date >= CURRENT_DATE - ${days}::int
         ORDER BY COALESCE(approved_at, created_at) DESC
         LIMIT ${limit}
       `;

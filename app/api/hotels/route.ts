@@ -34,14 +34,20 @@ export async function GET(request: Request) {
       hotels = await listHotels(simulatedUserId, false);
     }
 
+    // Role-sensitive — must not be cached by the browser.  The cookies that
+    // control which hotels are visible can change at any time (sim toolbar).
+    // Server-side deduplication is handled by the cached() wrapper in listHotels.
+    // "no-store" prevents the browser from returning stale admin data after
+    // switching to a customer simulation (even across a full page reload).
+    const CC = { "Cache-Control": "no-store" };
+
     if (!withKpis) {
       const slim = hotels.map(({ id, name, city, state, location, pendingApprovals }) => ({
         id, name, city, state, location, pendingApprovals,
       }));
-      return NextResponse.json({ ok: true, data: slim, meta: { role, total: slim.length } });
+      return NextResponse.json({ ok: true, data: slim, meta: { role, total: slim.length } }, { headers: CC });
     }
 
-    const CC = { "Cache-Control": "private, max-age=300, stale-while-revalidate=60" };
     return NextResponse.json({ ok: true, data: hotels, meta: { role, total: hotels.length } }, { headers: CC });
   } catch (err) {
     console.error("[GET /api/hotels]", err);

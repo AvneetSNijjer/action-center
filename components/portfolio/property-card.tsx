@@ -1,6 +1,5 @@
 "use client";
 import { motion } from "framer-motion";
-import { useRouter } from "next/navigation";
 import { ArrowUpRight, ArrowDownRight, AlertOctagon, MapPin } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line } from "recharts";
 import { Card } from "@/components/ui/card";
@@ -11,7 +10,6 @@ import { STATUS_META, type Property } from "@/lib/portfolio";
 import { cn, formatCurrency } from "@/lib/utils";
 
 export function PropertyCard({ property, index = 0 }: { property: Property; index?: number }) {
-  const router = useRouter();
   const { setActiveProperty } = usePortfolio();
   const status = STATUS_META[property.status];
   const mode = getMode(property.strategyMode);
@@ -19,8 +17,12 @@ export function PropertyCard({ property, index = 0 }: { property: Property; inde
   const paceUp = property.kpis.paceVsStly >= 0;
 
   const handleDrillDown = () => {
+    // Both the Portfolio Command Center and Property Action Center live on the
+    // same "/" route — view switching is driven purely by React context state.
+    // Calling router.push("/") when already on "/" triggers an unnecessary
+    // same-page navigation in Next.js App Router that can race against the
+    // state update and cause the wrong property to appear.
     setActiveProperty(property.id, { switchToProperty: true });
-    router.push("/");
   };
 
   return (

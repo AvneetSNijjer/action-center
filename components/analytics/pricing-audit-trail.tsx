@@ -20,14 +20,15 @@ const sourceVariant: Record<string, "info" | "opportunity" | "warning"> = {
 const fetcher = (url: string) =>
   fetch(url).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
 
-export function PricingAuditTrail() {
+export function PricingAuditTrail({ range = "90d" }: { range?: "30d" | "90d" | "365d" }) {
   const [query, setQuery] = React.useState("");
   const [toast, setToast] = React.useState<string | null>(null);
   const { activePropertyId } = usePortfolio();
+  const days = range === "30d" ? 30 : range === "365d" ? 365 : 90;
 
   const { data: res, isLoading, error } = useSWR<{ ok: boolean; data: PricingDecisionRow[] }>(
     activePropertyId
-      ? `/api/hotels/${activePropertyId}/analytics/pricing-decisions`
+      ? `/api/hotels/${activePropertyId}/analytics/pricing-decisions?days=${days}`
       : null,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 120_000 }

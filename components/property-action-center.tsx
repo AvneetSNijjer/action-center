@@ -321,9 +321,9 @@ export function PropertyActionCenter() {
   );
   const livePublishingHealth = pubHealthRes?.ok ? pubHealthRes.data : null;
 
-  // ── Action summary (real pending/approved/denied counts) ──────
+  // ── Action summary (scoped to this hotel) ────────────────────
   const { data: actionSummaryRes } = useSWR<{ ok: boolean; data: ActionSummary }>(
-    "/api/actions/summary",
+    activePropertyId ? `/api/actions/summary?hotelId=${activePropertyId}` : null,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 300_000 }
   );

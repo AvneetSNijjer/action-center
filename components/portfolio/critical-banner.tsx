@@ -1,13 +1,11 @@
 "use client";
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
 import { AlertOctagon, ChevronRight } from "lucide-react";
 import { usePortfolio } from "@/components/portfolio-provider";
 import { Button } from "@/components/ui/button";
 
 export function CriticalBanner() {
-  const router = useRouter();
   const { hotels, setActiveProperty } = usePortfolio();
 
   // Live critical = hotels with the highest pending-approval counts (top 3)
@@ -22,9 +20,10 @@ export function CriticalBanner() {
 
   const totalPending = criticals.reduce((a, h) => a + (h.pendingApprovals ?? 0), 0);
 
+  // View switch is pure context state — no router.push needed since both
+  // Portfolio and Property views live on the same "/" route.
   const open = (id: string) => {
     setActiveProperty(id, { switchToProperty: true });
-    router.push("/");
   };
 
   return (

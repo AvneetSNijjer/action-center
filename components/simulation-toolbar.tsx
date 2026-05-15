@@ -13,6 +13,7 @@ import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Shield, User, ChevronDown, Eye, RefreshCw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePortfolio } from "@/components/portfolio-provider";
 
 const STORAGE_KEY = "ampliphi.sim.v1";
 
@@ -29,14 +30,18 @@ function emitRoleChange(role: string, userId: string) {
   );
 }
 
-export function SimulationToolbar({ totalHotels }: { totalHotels?: number }) {
+export function SimulationToolbar() {
   const showToolbar = process.env.NEXT_PUBLIC_DEMO_SHOW_SIM_TOOLBAR === "true";
+  // Read live hotel count directly from portfolio context — the totalHotels prop
+  // was never passed from the server-component layout so it was always undefined.
+  const { hotels } = usePortfolio();
+  const totalHotels = hotels.length || undefined;
+
   const [open, setOpen] = React.useState(false);
   const [minimised, setMinimised] = React.useState(false);
   const [sim, setSim] = React.useState<SimState>({
     role: "admin",
     simulatedUserId: "",
-    hotelCount: totalHotels,
   });
   const [userIdInput, setUserIdInput] = React.useState("");
   const [applying, setApplying] = React.useState(false);
@@ -53,48 +58,50 @@ export function SimulationToolbar({ totalHotels }: { totalHotels?: number }) {
     } catch {}
   }, []);
 
-  React.useEffect(() => {
-    setSim((prev) => ({ ...prev, hotelCount: totalHotels }));
-  }, [totalHotels]);
-
   if (!showToolbar) return null;
 
   const persist = (next: SimState) => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
   };
 
-  const applyAdmin = () => {
+  /** Clear the portfolio nav state so the post-reload session always starts
+   *  from the group overview with the correct role's hotels, not a stale
+   *  property page that might not be accessible under the new role. */
+  const clearPortfolioState = () => {
+    try { localStorage.removeItem("ampliphi.portfolio.v1"); } catch {}
+  };
+
+  const switchRole = (role: "admin" | "customer", userId: string) => {
     setApplying(true);
-    const next: SimState = { role: "admin", simulatedUserId: "", hotelCount: undefined };
+    const next: SimState = { role, simulatedUserId: userId };
     setSim(next);
     persist(next);
-    emitRoleChange("admin", "");
-    // POST to a lightweight endpoint to update the session cookie / reload data
     fetch("/api/sim/role", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role: "admin", userId: "" }),
-    }).finally(() => {
-      setApplying(false);
-      window.location.reload();
-    });
+      body: JSON.stringify({ role, userId }),
+    })
+      .then(() => {
+        // Clear portfolio nav state AFTER the role cookie is confirmed set,
+        // so the post-reload PortfolioProvider starts clean (group scope, no
+        // stale activePropertyId pointing to a hotel the new role can't see).
+        clearPortfolioState();
+      })
+      .catch(() => {
+        // Even on network error, clear state and reload to avoid being stuck.
+        clearPortfolioState();
+      })
+      .finally(() => {
+        setApplying(false);
+        window.location.reload();
+      });
   };
+
+  const applyAdmin = () => switchRole("admin", "");
 
   const applyCustomer = () => {
     if (!userIdInput.trim()) return;
-    setApplying(true);
-    const next: SimState = { role: "customer", simulatedUserId: userIdInput.trim() };
-    setSim(next);
-    persist(next);
-    emitRoleChange("customer", userIdInput.trim());
-    fetch("/api/sim/role", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role: "customer", userId: userIdInput.trim() }),
-    }).finally(() => {
-      setApplying(false);
-      window.location.reload();
-    });
+    switchRole("customer", userIdInput.trim());
   };
 
   const isAdmin = sim.role === "admin";
@@ -204,7 +211,7 @@ export function SimulationToolbar({ totalHotels }: { totalHotels?: number }) {
       >
         {isAdmin ? <Shield className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
         {isAdmin
-          ? `Admin · ${sim.hotelCount ?? "…"} hotels`
+          ? `Admin · ${totalHotels ?? "…"} hotels`
           : `Customer · user ${sim.simulatedUserId}`}
         <ChevronDown className={cn("h-3 w-3 transition-transform", open && "rotate-180")} />
       </motion.button>

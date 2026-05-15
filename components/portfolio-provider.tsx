@@ -35,9 +35,12 @@ interface StoredState {
   activePropertyId: string;
 }
 
-const DEFAULT_HOTEL_ID =
-  process.env.NEXT_PUBLIC_DEFAULT_HOTEL_ID ??
-  HOTEL_GROUP.properties[0].id;
+// Use the env-var default if set; fall back to empty string so that SWR null-guards
+// (`activePropertyId ? url : null`) prevent API calls until the hotel list loads
+// and the validation effect picks a real first hotel.  The old fallback of
+// HOTEL_GROUP.properties[0].id ("h-grand-marina") doesn't exist in the DB and
+// caused 500 errors across every widget until the hotels SWR resolved.
+const DEFAULT_HOTEL_ID = process.env.NEXT_PUBLIC_DEFAULT_HOTEL_ID ?? "";
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => {
@@ -64,7 +67,7 @@ export function hotelRowToProperty(h: HotelRow): Property {
     name: h.name,
     city: h.city,
     state: h.state,
-    rooms: 0,
+    rooms: h.totalRooms ?? 0,
     status,
     openActions: h.pendingApprovals,
     criticalActions,
@@ -73,8 +76,8 @@ export function hotelRowToProperty(h: HotelRow): Property {
       occupancy: h.occupancy ?? 0,
       adr: h.adr ?? 0,
       revpar: h.revpar ?? 0,
-      revenueMtd: 0,
-      paceVsStly: 0,
+      revenueMtd: h.revenueMtd ?? 0,
+      paceVsStly: h.paceVsStly ?? 0,
       forecastAccuracy: 0,
     },
     revparTrend: [],
@@ -135,14 +138,41 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     }
   }, [scope, activePropertyId, hydrated]);
 
-  // If role is customer and activePropertyId isn't in the allowed list, reset to first
+  // When the hotel list changes (initial load, role/simulation switch) validate
+  // the active hotel and scope.
+  //
+  // Rules:
+  //  1. If activePropertyId is empty or not in the new list → pick the first
+  //     real DB hotel (skip index 0 which is always the Meriton Kent fixture).
+  //  2. If the hotel list changed to a *different* set (role switch) → always
+  //     return to group scope so the user sees the correct portfolio overview
+  //     instead of being stuck on a property page from the previous role.
+  //
+  // IMPORTANT: activePropertyId is intentionally NOT in the dependency array.
+  // Including it would cause the effect to fire on every user navigation.
+  const prevHotelIdsRef = React.useRef<string>("");
   React.useEffect(() => {
     if (!dbHotels.length) return;
+
+    const currentIds = dbHotels.map((h) => h.id).join(",");
+    const listChanged = prevHotelIdsRef.current !== "" && prevHotelIdsRef.current !== currentIds;
+    prevHotelIdsRef.current = currentIds;
+
     const found = dbHotels.some((h) => h.id === activePropertyId);
+
     if (!found) {
-      setActivePropertyIdState(dbHotels[0].id);
+      // Active hotel not accessible under this role — pick first real hotel.
+      const fallback = dbHotels.find((_, i) => i > 0) ?? dbHotels[0];
+      setActivePropertyIdState(fallback.id);
     }
-  }, [dbHotels, activePropertyId]);
+
+    if (listChanged) {
+      // Hotel list swapped (admin ↔ customer switch) — always go to group view
+      // so the user sees the portfolio for the new role, not a stale property.
+      setScopeState("group");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dbHotels]); // Only re-run when the hotel LIST changes, never on user navigation
 
   const activeHotel = React.useMemo(
     () => dbHotels.find((h) => h.id === activePropertyId) ?? null,
