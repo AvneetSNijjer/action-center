@@ -13,6 +13,14 @@ export function formatCurrency(n: number, currency = "USD") {
   }).format(n);
 }
 
+/** Parse "London, UK" or "New York, NY, USA" into city + state. */
+export function splitLocation(location: string): { city: string; state: string } {
+  if (!location) return { city: "", state: "" };
+  const parts = location.split(",").map((s) => s.trim());
+  if (parts.length >= 2) return { city: parts[0], state: parts[parts.length - 1] };
+  return { city: location.trim(), state: "" };
+}
+
 export function formatRelativeTime(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);

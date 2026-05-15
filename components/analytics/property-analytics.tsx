@@ -52,7 +52,7 @@ export function PropertyAnalytics() {
 
       <AnalyticsHeader range={range} setRange={setRange} comparison={showStly} setComparison={setShowStly} />
       {/* TODO: <PerformanceIndices /> — re-enable once we explain comp-set indices clearly */}
-      <KpiTrend showStly={showStly} />
+      <KpiTrend showStly={showStly} range={range} />
       {/* TODO: <ForecastAccuracy /> — re-enable when forecast data is wired */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ChannelMix />

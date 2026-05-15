@@ -71,7 +71,7 @@ export function MorningBriefing({ liveData, topInsights = [] }: MorningBriefingP
             hint={
               liveData.compLabel === "STLY"
                 ? "Same Time Last Year"
-                : "No year-ago data · using 30-day rolling avg"
+                : `No year-ago data · using ${liveData.compLabel}`
             }
             hintIcon={liveData.compLabel !== "STLY" ? <Info className="h-3 w-3" /> : undefined}
           >

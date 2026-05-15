@@ -10,6 +10,21 @@
  */
 
 import { sql, cached } from "@/lib/db";
+import { MERITON_KENT_HOTEL_ID } from "@/lib/insights-engine";
+import { splitLocation } from "@/lib/utils";
+
+/** Showcase fixture hotel — appears in admin view for demo presentations. */
+const MERITON_KENT_FIXTURE: HotelRow = {
+  id: MERITON_KENT_HOTEL_ID,
+  name: "Meriton Kent Hotel ★ Demo",
+  location: "London, UK",
+  city: "London",
+  state: "UK",
+  occupancy: 73.4,
+  adr: 312.5,
+  revpar: 229.4,
+  pendingApprovals: 5,
+};
 
 export interface HotelRow {
   id: string;          // hotel_id string, e.g. "AI3786"
@@ -24,14 +39,9 @@ export interface HotelRow {
   pendingApprovals: number;
 }
 
-export function splitLocation(location: string): { city: string; state: string } {
-  if (!location) return { city: "", state: "" };
-  const parts = location.split(",").map((s) => s.trim());
-  if (parts.length >= 2) {
-    return { city: parts[0], state: parts[parts.length - 1] };
-  }
-  return { city: location.trim(), state: "" };
-}
+// Re-export from utils so server code can import from either place,
+// while client components import directly from @/lib/utils (no pg dependency).
+export { splitLocation } from "@/lib/utils";
 
 type HotelDbRow = {
   hotel_id: string;
@@ -242,7 +252,12 @@ export async function listHotels(
           ORDER BY h.name
         `;
       }
-      return rows.map(mapRow);
+      const mapped = rows.map(mapRow);
+      // Prepend Meriton Kent fixture for admin/superuser view only
+      if (isSuperuser || userId == null) {
+        return [MERITON_KENT_FIXTURE, ...mapped];
+      }
+      return mapped;
     },
     60_000 // 1-minute cache for the hotel list
   );

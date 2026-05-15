@@ -6,6 +6,7 @@ import { PortfolioProvider } from "@/components/portfolio-provider";
 import { Sidebar } from "@/components/sidebar";
 import { TopBar } from "@/components/topbar";
 import { ReadOnlyBanner } from "@/components/read-only-banner";
+import { SimulationToolbar } from "@/components/simulation-toolbar";
 
 export const metadata: Metadata = {
   title: "ampliphi · Action Center",
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   </div>
                 </div>
               </div>
+              <SimulationToolbar />
             </StrategyProvider>
           </PortfolioProvider>
         </ThemeProvider>
