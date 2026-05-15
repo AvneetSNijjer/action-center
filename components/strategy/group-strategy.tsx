@@ -13,11 +13,20 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ActionToast } from "@/components/action-toast";
-import { HOTEL_GROUP, STATUS_META, type Property } from "@/lib/portfolio";
+import { STATUS_META, type Property } from "@/lib/portfolio";
 import { STRATEGY_MODES, getMode, type StrategyModeId } from "@/lib/strategy";
 import { cn, formatCurrency } from "@/lib/utils";
+import { usePortfolio, hotelRowToProperty } from "@/components/portfolio-provider";
 
 export function GroupStrategy() {
+  const { hotels: dbHotels } = usePortfolio();
+
+  // Convert DB hotels to Property objects; default strategy to "maximize_revenue"
+  const properties: Property[] = React.useMemo(
+    () => dbHotels.map((h) => hotelRowToProperty(h)),
+    [dbHotels]
+  );
+
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [newMode, setNewMode] = React.useState<StrategyModeId | null>(null);
   const [confirming, setConfirming] = React.useState(false);
@@ -28,7 +37,7 @@ export function GroupStrategy() {
     setTimeout(() => setToast(null), 2200);
   };
 
-  // Mode distribution
+  // Mode distribution — all real hotels default to maximize_revenue
   const modeCounts = React.useMemo(() => {
     const counts: Record<StrategyModeId, number> = {
       maximize_revenue: 0,
@@ -38,11 +47,11 @@ export function GroupStrategy() {
       direct_push: 0,
       custom: 0,
     };
-    HOTEL_GROUP.properties.forEach((p) => {
+    properties.forEach((p) => {
       counts[p.strategyMode]++;
     });
     return counts;
-  }, []);
+  }, [properties]);
 
   const toggleProperty = (id: string) => {
     setSelected((prev) => {
@@ -53,8 +62,8 @@ export function GroupStrategy() {
   };
 
   const toggleAll = () => {
-    if (selected.size === HOTEL_GROUP.properties.length) setSelected(new Set());
-    else setSelected(new Set(HOTEL_GROUP.properties.map((p) => p.id)));
+    if (selected.size === properties.length) setSelected(new Set());
+    else setSelected(new Set(properties.map((p) => p.id)));
   };
 
   const handleApply = () => {
@@ -93,7 +102,7 @@ export function GroupStrategy() {
         <CardHeader>
           <CardTitle>Strategy distribution across portfolio</CardTitle>
           <CardDescription>
-            How your {HOTEL_GROUP.properties.length} properties are currently configured.
+            How your {properties.length} properties are currently configured.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -153,16 +162,16 @@ export function GroupStrategy() {
             hint={
               selected.size === 0
                 ? "No properties selected"
-                : `${selected.size} of ${HOTEL_GROUP.properties.length} selected`
+                : `${selected.size} of ${properties.length} selected`
             }
             action={
               <Button variant="outline" size="sm" onClick={toggleAll}>
-                {selected.size === HOTEL_GROUP.properties.length ? "Clear all" : "Select all"}
+                {selected.size === properties.length ? "Clear all" : "Select all"}
               </Button>
             }
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {HOTEL_GROUP.properties.map((p) => (
+              {properties.map((p) => (
                 <PropertyChecklistRow
                   key={p.id}
                   property={p}
@@ -241,7 +250,7 @@ export function GroupStrategy() {
                       Preview — before / after
                     </div>
                     {Array.from(selected).map((id) => {
-                      const p = HOTEL_GROUP.properties.find((x) => x.id === id);
+                      const p = properties.find((x) => x.id === id);
                       if (!p) return null;
                       const oldMode = getMode(p.strategyMode);
                       const next = getMode(newMode);
@@ -304,7 +313,7 @@ export function GroupStrategy() {
                 </tr>
               </thead>
               <tbody>
-                {HOTEL_GROUP.properties.map((p, i) => {
+                {properties.map((p, i) => {
                   const mode = getMode(p.strategyMode);
                   const Icon = mode.icon;
                   const status = STATUS_META[p.status];

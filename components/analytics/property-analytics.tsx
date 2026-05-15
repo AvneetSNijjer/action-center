@@ -55,12 +55,12 @@ export function PropertyAnalytics() {
       <KpiTrend showStly={showStly} range={range} />
       {/* TODO: <ForecastAccuracy /> — re-enable when forecast data is wired */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ChannelMix />
-        <SegmentMix />
+        <ChannelMix range={range} />
+        <SegmentMix range={range} />
       </div>
       <PickupRetrospective />
       {/* TODO: <Distributions /> — re-enable when lead-time/LOS distribution data is in the DB */}
-      <PricingAuditTrail />
+      <PricingAuditTrail range={range} />
     </div>
   );
 }

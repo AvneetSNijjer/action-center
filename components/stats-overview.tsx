@@ -6,6 +6,16 @@ import { ResponsiveContainer, AreaChart, Area, Tooltip } from "recharts";
 import { ACTION_TREND } from "@/lib/mock-data";
 import { cn, formatCurrency } from "@/lib/utils";
 
+export interface ActionSummary {
+  pendingTotal:       number;
+  approvedTotal:      number;
+  deniedTotal:        number;
+  pendingToday:       number;
+  approvedToday:      number;
+  deniedToday:        number;
+  autoPublishedToday: number;
+}
+
 interface StatProps {
   label: string;
   value: string | number;
@@ -58,19 +68,30 @@ export function StatsOverview({
   counts,
   revenueImpact,
   pendingApprovals,
+  actionSummary,
 }: {
   counts: Record<string, number>;
   revenueImpact: number;
   /** Live pending approvals count from DB. If provided, shown as badge delta. */
   pendingApprovals?: number | null;
+  /** Live action summary from /api/actions/summary */
+  actionSummary?: ActionSummary | null;
 }) {
+  const pendingTotal  = actionSummary?.pendingTotal  ?? pendingApprovals ?? null;
+  const approvedTotal = actionSummary?.approvedTotal ?? null;
+  const pendingToday  = actionSummary?.pendingToday  ?? null;
+
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       <Stat
         index={0}
         label="Critical"
         value={counts.critical || 0}
-        delta="+1 today"
+        delta={
+          pendingTotal !== null
+            ? `${pendingTotal.toLocaleString()} pending reviews`
+            : undefined
+        }
         trend="down"
         Icon={AlertOctagon}
         accent="bg-red-500"
@@ -79,7 +100,11 @@ export function StatsOverview({
         index={1}
         label="Warnings"
         value={counts.warning || 0}
-        delta="+2 today"
+        delta={
+          pendingToday !== null
+            ? `${pendingToday.toLocaleString()} queued today`
+            : undefined
+        }
         trend="neutral"
         Icon={AlertTriangle}
         accent="bg-amber-500"
@@ -97,7 +122,11 @@ export function StatsOverview({
         index={3}
         label="Informational"
         value={counts.info || 0}
-        delta="2 queued"
+        delta={
+          approvedTotal !== null
+            ? `${approvedTotal.toLocaleString()} approved all-time`
+            : undefined
+        }
         trend="neutral"
         Icon={Info}
         accent="bg-brand-500"

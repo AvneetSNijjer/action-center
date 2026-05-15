@@ -38,12 +38,13 @@ interface CategorySummary {
   sharePct:     number;
 }
 
-export function SegmentMix() {
+export function SegmentMix({ range = "90d" }: { range?: "30d" | "90d" | "365d" }) {
   const { activePropertyId } = usePortfolio();
+  const days = range === "30d" ? 30 : range === "365d" ? 365 : 90;
 
   const { data: res, isLoading, error } = useSWR<{ ok: boolean; data: RoomTypeMixRow[] }>(
     activePropertyId
-      ? `/api/hotels/${activePropertyId}/analytics/room-type-mix?days=90`
+      ? `/api/hotels/${activePropertyId}/analytics/room-type-mix?days=${days}`
       : null,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 300_000 }
@@ -76,7 +77,7 @@ export function SegmentMix() {
       <CardHeader>
         <CardTitle>Room category mix</CardTitle>
         <CardDescription>
-          Occupancy distribution by room category · last 90 days
+          Occupancy distribution by room category · last {days} days
         </CardDescription>
       </CardHeader>
       <CardContent>

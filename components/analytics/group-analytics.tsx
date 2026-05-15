@@ -16,9 +16,8 @@ import {
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { HOTEL_GROUP, PORTFOLIO_ROLLUP, STATUS_META, type Property } from "@/lib/portfolio";
-import { PERFORMANCE_INDICES, CHANNEL_MIX } from "@/lib/analytics-data";
-import { usePortfolio } from "@/components/portfolio-provider";
+import { STATUS_META, type Property } from "@/lib/portfolio";
+import { usePortfolio, hotelRowToProperty } from "@/components/portfolio-provider";
 import { cn, formatCurrency } from "@/lib/utils";
 
 const channels = [
@@ -33,12 +32,18 @@ type SortKey = "name" | "occupancy" | "adr" | "revpar" | "revenue" | "pace" | "a
 
 export function GroupAnalytics() {
   const router = useRouter();
-  const { setActiveProperty } = usePortfolio();
+  const { hotels: dbHotels, setActiveProperty } = usePortfolio();
   const [sortKey, setSortKey] = React.useState<SortKey>("revpar");
   const [sortDir, setSortDir] = React.useState<"asc" | "desc">("desc");
 
+  // Convert DB hotels to Property objects for display
+  const properties: Property[] = React.useMemo(
+    () => dbHotels.map((h) => hotelRowToProperty(h)),
+    [dbHotels]
+  );
+
   const sorted = React.useMemo(() => {
-    const list = [...HOTEL_GROUP.properties];
+    const list = [...properties];
     const dir = sortDir === "asc" ? 1 : -1;
     list.sort((a, b) => {
       const va = pick(a, sortKey);
@@ -47,10 +52,10 @@ export function GroupAnalytics() {
       return ((va as number) - (vb as number)) * dir;
     });
     return list;
-  }, [sortKey, sortDir]);
+  }, [properties, sortKey, sortDir]);
 
-  const best = [...HOTEL_GROUP.properties].sort((a, b) => b.kpis.revpar - a.kpis.revpar)[0];
-  const worst = [...HOTEL_GROUP.properties].sort((a, b) => a.kpis.paceVsStly - b.kpis.paceVsStly)[0];
+  const best  = [...properties].sort((a, b) => (b.kpis.revpar ?? 0) - (a.kpis.revpar ?? 0))[0];
+  const worst = [...properties].sort((a, b) => (a.kpis.occupancy ?? 0) - (b.kpis.occupancy ?? 0))[0];
 
   const toggle = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -185,75 +190,53 @@ export function GroupAnalytics() {
       </Card>
 
       {/* Best / Worst */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <Highlight
-          Icon={Trophy}
-          tone="emerald"
-          label="Top performer"
-          property={best}
-          metric={`RevPAR ${formatCurrency(best.kpis.revpar)}`}
-          onDrillIn={drillIn}
-        />
-        <Highlight
-          Icon={AlertTriangle}
-          tone="red"
-          label="Needs the most attention"
-          property={worst}
-          metric={`Pace ${worst.kpis.paceVsStly > 0 ? "+" : ""}${worst.kpis.paceVsStly.toFixed(1)}% vs STLY`}
-          onDrillIn={drillIn}
-        />
-      </div>
+      {best && worst && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <Highlight
+            Icon={Trophy}
+            tone="emerald"
+            label="Top performer (by RevPAR)"
+            property={best}
+            metric={best.kpis.revpar ? `RevPAR ${formatCurrency(best.kpis.revpar)}` : "No RevPAR data"}
+            onDrillIn={drillIn}
+          />
+          <Highlight
+            Icon={AlertTriangle}
+            tone="red"
+            label="Lowest occupancy"
+            property={worst}
+            metric={worst.kpis.occupancy ? `${worst.kpis.occupancy.toFixed(1)}% occupancy (30d)` : "No occupancy data"}
+            onDrillIn={drillIn}
+          />
+        </div>
+      )}
 
-      {/* Portfolio channel mix */}
+      {/* Portfolio channel mix — fallback notice (booking_source unavailable) */}
       <Card>
         <CardHeader>
           <CardTitle>Portfolio channel mix over time</CardTitle>
           <CardDescription>
-            Revenue share by channel, rolled up across all properties.
+            Revenue share by booking source across the portfolio.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-            className="h-56 w-full"
-          >
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={CHANNEL_MIX} margin={{ top: 10, right: 8, bottom: 0, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="week" stroke="hsl(var(--muted-foreground))" fontSize={11} />
-                <YAxis
-                  stroke="hsl(var(--muted-foreground))"
-                  fontSize={11}
-                  tickFormatter={(v) => `${v}%`}
-                  domain={[0, 100]}
-                />
-                <Tooltip
-                  contentStyle={{
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: 8,
-                    background: "hsl(var(--popover))",
-                    fontSize: 12,
-                  }}
-                  formatter={(v: any) => `${v}%`}
-                />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                {channels.map((c) => (
-                  <Bar
-                    key={c.key}
-                    dataKey={c.key}
-                    stackId="mix"
-                    fill={c.color}
-                    name={c.label}
-                    isAnimationActive={false}
-                  />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </motion.div>
+          <div className="flex h-56 items-center justify-center flex-col gap-3 rounded-lg border border-dashed border-amber-200 dark:border-amber-800/50 bg-amber-50/40 dark:bg-amber-950/15 p-6 text-center">
+            <div className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/40">
+              <Layers className="h-4 w-4 text-amber-700 dark:text-amber-300" />
+            </div>
+            <div className="max-w-md">
+              <div className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                Channel data unavailable
+              </div>
+              <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400 leading-relaxed">
+                No <code className="font-mono">booking_source</code> column is present in the
+                PMS feed for these properties — direct / OTA breakdown cannot be computed.
+                Surfaces once channel data is wired in.
+              </p>
+            </div>
+          </div>
           <div className="mt-2 text-[10px] text-muted-foreground">
-            Source: reservations.booking_source aggregated across all properties
+            Source would be <code className="font-mono">reservations.booking_source</code> (not in this feed)
           </div>
         </CardContent>
       </Card>

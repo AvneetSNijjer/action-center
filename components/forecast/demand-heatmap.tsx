@@ -40,7 +40,7 @@ export function DemandHeatmap() {
   const [hovered, setHovered] = React.useState<number | null>(null);
 
   const { data, isLoading, error } = useSWR<{ ok: boolean; data: HeatmapCell[] }>(
-    `/api/hotels/${activePropertyId}/forecast/heatmap`,
+    activePropertyId ? `/api/hotels/${activePropertyId}/forecast/heatmap` : null,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 300_000 }
   );

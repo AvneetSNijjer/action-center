@@ -3,11 +3,12 @@ import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LayoutGrid, Inbox } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { HOTEL_GROUP, PORTFOLIO_ROLLUP, type Property, type PropertyStatus } from "@/lib/portfolio";
+import { type Property, type PropertyStatus } from "@/lib/portfolio";
 import { CriticalBanner } from "@/components/portfolio/critical-banner";
 import { PortfolioKpiStrip } from "@/components/portfolio/kpi-strip";
 import { PropertyFilters, type StatusFilter, type PortfolioSort } from "@/components/portfolio/property-filters";
 import { PropertyCard } from "@/components/portfolio/property-card";
+import { usePortfolio, hotelRowToProperty } from "@/components/portfolio-provider";
 
 const STATUS_RANK: Record<PropertyStatus, number> = {
   critical: 0,
@@ -16,17 +17,30 @@ const STATUS_RANK: Record<PropertyStatus, number> = {
 };
 
 export function PortfolioCommandCenter() {
+  const { hotels: dbHotels } = usePortfolio();
   const [status, setStatus] = React.useState<StatusFilter>("all");
   const [sort, setSort] = React.useState<PortfolioSort>("priority");
 
-  const counts = React.useMemo(() => PORTFOLIO_ROLLUP.propertyCounts, []);
+  // Convert live DB hotels to Property objects
+  const properties: Property[] = React.useMemo(
+    () => dbHotels.map((h) => hotelRowToProperty(h)),
+    [dbHotels]
+  );
+
+  const counts = React.useMemo(() => {
+    return {
+      critical:     properties.filter((p) => p.status === "critical").length,
+      needs_review: properties.filter((p) => p.status === "needs_review").length,
+      on_track:     properties.filter((p) => p.status === "on_track").length,
+    };
+  }, [properties]);
 
   const filtered = React.useMemo(() => {
-    let list: Property[] = [...HOTEL_GROUP.properties];
+    let list: Property[] = [...properties];
     if (status !== "all") list = list.filter((p) => p.status === status);
 
     list.sort((a, b) => {
-      if (sort === "revpar") return b.kpis.revpar - a.kpis.revpar;
+      if (sort === "revpar") return (b.kpis.revpar ?? 0) - (a.kpis.revpar ?? 0);
       if (sort === "actions") return b.openActions - a.openActions;
       if (sort === "name") return a.name.localeCompare(b.name);
       // priority: status first, then critical actions, then open actions
@@ -37,7 +51,7 @@ export function PortfolioCommandCenter() {
       return b.openActions - a.openActions;
     });
     return list;
-  }, [status, sort]);
+  }, [properties, status, sort]);
 
   return (
     <div className="space-y-6">

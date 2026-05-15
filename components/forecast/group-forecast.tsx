@@ -15,26 +15,36 @@ import { ResponsiveContainer, LineChart, Line } from "recharts";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { HOTEL_GROUP, STATUS_META, type Property } from "@/lib/portfolio";
+import { STATUS_META, type Property } from "@/lib/portfolio";
 import { UpcomingEvents } from "@/components/forecast/upcoming-events";
-import { usePortfolio } from "@/components/portfolio-provider";
+import { usePortfolio, hotelRowToProperty } from "@/components/portfolio-provider";
 import { cn, formatCurrency } from "@/lib/utils";
 
 export function GroupForecast() {
   const router = useRouter();
-  const { setActiveProperty } = usePortfolio();
+  const { hotels: dbHotels, setActiveProperty } = usePortfolio();
 
-  // Sort properties by pace ascending — worst pace at top (most urgent)
-  const sortedByPace = React.useMemo(
-    () => [...HOTEL_GROUP.properties].sort((a, b) => a.kpis.paceVsStly - b.kpis.paceVsStly),
-    []
+  // Convert live DB hotels → Property shape
+  const properties: Property[] = React.useMemo(
+    () => dbHotels.map((h) => hotelRowToProperty(h)),
+    [dbHotels]
   );
 
-  const ahead = sortedByPace.filter((p) => p.kpis.paceVsStly > 0).length;
-  const behind = sortedByPace.filter((p) => p.kpis.paceVsStly < 0).length;
-  const avgPace = sortedByPace.reduce((a, p) => a + p.kpis.paceVsStly, 0) / sortedByPace.length;
-  const avgForecastAccuracy =
-    sortedByPace.reduce((a, p) => a + p.kpis.forecastAccuracy, 0) / sortedByPace.length;
+  // Sort by occupancy ascending — lowest-occupancy properties surface first (need attention)
+  const sortedByPace = React.useMemo(
+    () => [...properties].sort((a, b) => (a.kpis.occupancy ?? 0) - (b.kpis.occupancy ?? 0)),
+    [properties]
+  );
+
+  const withOcc = properties.filter((p) => (p.kpis.occupancy ?? 0) > 0);
+  const avgOcc  = withOcc.length
+    ? withOcc.reduce((a, p) => a + (p.kpis.occupancy ?? 0), 0) / withOcc.length
+    : 0;
+
+  const ahead  = withOcc.filter((p) => (p.kpis.occupancy ?? 0) >= avgOcc).length;
+  const behind = withOcc.filter((p) => (p.kpis.occupancy ?? 0) <  avgOcc).length;
+  const avgPace = 0;                  // No STLY available portfolio-wide yet
+  const avgForecastAccuracy = avgOcc; // Reuse the gauge as occupancy gauge
 
   const drillIn = (id: string) => {
     setActiveProperty(id, { switchToProperty: true });
@@ -136,12 +146,12 @@ export function GroupForecast() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {HOTEL_GROUP.properties.map((p, i) => {
+            {properties.map((p, i) => {
               const status = STATUS_META[p.status];
-              const trend = p.revparTrend;
-              const first = trend[0];
-              const last = trend[trend.length - 1];
-              const delta = ((last - first) / first) * 100;
+              const trend = p.revparTrend.length > 0 ? p.revparTrend : [p.kpis.revpar ?? 0];
+              const first = trend[0] || 1;
+              const last = trend[trend.length - 1] || first;
+              const delta = first > 0 ? ((last - first) / first) * 100 : 0;
               const up = delta >= 0;
               return (
                 <motion.button
@@ -228,7 +238,7 @@ export function GroupForecast() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => drillIn(HOTEL_GROUP.properties[0].id)}
+            onClick={() => properties[0] && drillIn(properties[0].id)}
           >
             Open property view
             <ChevronRight className="h-3.5 w-3.5" />

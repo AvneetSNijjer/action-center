@@ -47,11 +47,12 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const CC = { "Cache-Control": "private, max-age=300, stale-while-revalidate=60" };
     if (params.id === MERITON_KENT_HOTEL_ID) {
-      return NextResponse.json({ ok: true, data: mkPickupFixture() });
+      return NextResponse.json({ ok: true, data: mkPickupFixture() }, { headers: CC });
     }
     const data = await getPickupCurveData(params.id);
-    return NextResponse.json({ ok: true, data });
+    return NextResponse.json({ ok: true, data }, { headers: CC });
   } catch (err) {
     console.error("[GET /api/hotels/[id]/forecast/pickup-curve]", err);
     return NextResponse.json(

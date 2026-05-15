@@ -44,7 +44,7 @@ export function CompSetLadder() {
   const [expandedDate, setExpandedDate] = React.useState<string | null>(null);
 
   const { data: resp, isLoading, error } = useSWR<{ ok: boolean; data: CompSetRow[] }>(
-    `/api/hotels/${activePropertyId}/forecast/comp-set`,
+    activePropertyId ? `/api/hotels/${activePropertyId}/forecast/comp-set` : null,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 300_000 }
   );

@@ -37,13 +37,14 @@ function occColor(pct: number) {
   return "#ef4444";
 }
 
-export function ChannelMix() {
+export function ChannelMix({ range = "90d" }: { range?: "30d" | "90d" | "365d" }) {
   const { activePropertyId } = usePortfolio();
   const [view, setView] = React.useState<"share" | "occupancy">("share");
+  const days = range === "30d" ? 30 : range === "365d" ? 365 : 90;
 
   const { data: res, isLoading, error } = useSWR<{ ok: boolean; data: RoomTypeMixRow[] }>(
     activePropertyId
-      ? `/api/hotels/${activePropertyId}/analytics/room-type-mix?days=90`
+      ? `/api/hotels/${activePropertyId}/analytics/room-type-mix?days=${days}`
       : null,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 300_000 }
@@ -76,7 +77,7 @@ export function ChannelMix() {
           <div>
             <CardTitle>Room type mix</CardTitle>
             <CardDescription>
-              Sold-night distribution by room type · last 90 days
+              Sold-night distribution by room type · last {days} days
             </CardDescription>
           </div>
           {rows.length > 0 && (

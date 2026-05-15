@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import useSWR from "swr";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles,
@@ -10,6 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Info,
+  Loader2,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,64 +25,50 @@ import {
   type StrategyModeId,
 } from "@/lib/strategy";
 import { cn, formatCurrency } from "@/lib/utils";
+import type { SimulatorConfigData, SimulatorEvent } from "@/lib/queries/strategy";
 
 /* ============================================================
- * Simulation data + math
+ * Simulation data + math — driven by live DB config
  * ============================================================ */
 
 interface SimDay {
-  /** ISO yyyy-mm-dd (UTC) */
-  date: string;
-  dow: number; // 0=Sun, 6=Sat
-  dowName: string; // "Mon", "Tue", ...
-  monthName: string; // "May", "Jun"
+  date: string;        // ISO yyyy-mm-dd (UTC)
+  dow: number;         // 0=Sun, 6=Sat
+  dowName: string;
+  monthName: string;
   dayOfMonth: number;
   isWeekend: boolean;
-  seasonality: number; // 0.85 → 1.15
+  seasonality: number;
   eventName?: string;
-  eventBoost: number; // 0 → 0.35
+  eventBoost: number;
   tag?: string;
 }
 
-// Static reference "today" so we don't introduce Date.now() drift.
-const TODAY_UTC = Date.UTC(2026, 4, 13); // May 13, 2026
-
-// Hand-tagged events drawn from the existing UPCOMING_EVENTS data
-const KNOWN_EVENTS: Record<string, { name: string; boost: number; tag: string }> = {
-  "2026-05-24": { name: "Boston Calling", boost: 0.28, tag: "Memorial Day · festival" },
-  "2026-05-25": { name: "Boston Calling", boost: 0.26, tag: "Memorial Day · festival" },
-  "2026-05-26": { name: "Boston Calling", boost: 0.18, tag: "Festival close" },
-  "2026-05-30": { name: "Coldplay @ TD Garden", boost: 0.34, tag: "Major concert" },
-  "2026-06-02": { name: "NEUR Conference", boost: 0.16, tag: "Conference Day 1" },
-  "2026-06-03": { name: "NEUR Conference", boost: 0.18, tag: "Conference peak" },
-  "2026-06-04": { name: "NEUR Conference", boost: 0.14, tag: "Conference Day 3" },
-  "2026-06-06": { name: "Red Sox vs Yankees", boost: 0.15, tag: "Marquee series" },
-  "2026-06-07": { name: "Red Sox vs Yankees", boost: 0.18, tag: "Saturday game" },
-  "2026-06-08": { name: "Red Sox vs Yankees", boost: 0.12, tag: "Sunday game" },
-  "2026-06-13": { name: "Boston Pride Parade", boost: 0.08, tag: "City-wide event" },
-};
-
 const DOW_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTH_NAMES = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** Generate the 90-day window starting from May 13, 2026. */
-function generateDays(): SimDay[] {
+/** Generate the 90-day window starting from server's "today". */
+function generateDays(todayIso: string, events: SimulatorEvent[]): SimDay[] {
   const out: SimDay[] = [];
+  const todayUtc = Date.UTC(
+    parseInt(todayIso.slice(0, 4), 10),
+    parseInt(todayIso.slice(5, 7), 10) - 1,
+    parseInt(todayIso.slice(8, 10), 10)
+  );
+  const eventMap = new Map<string, SimulatorEvent>();
+  for (const e of events) eventMap.set(e.date, e);
+
   for (let i = 0; i < 90; i++) {
-    const ts = TODAY_UTC + i * 86_400_000;
+    const ts = todayUtc + i * 86_400_000;
     const d = new Date(ts);
     const dow = d.getUTCDay();
     const dayOfMonth = d.getUTCDate();
     const monthName = MONTH_NAMES[d.getUTCMonth()];
     const iso = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(dayOfMonth).padStart(2, "0")}`;
 
-    // Gentle seasonal curve peaking ~day 50 (late June/early July)
+    // Gentle seasonal curve peaking ~day 50
     const seasonality = 0.92 + Math.sin((i / 90) * Math.PI) * 0.18;
-
-    const evt = KNOWN_EVENTS[iso];
+    const evt = eventMap.get(iso);
 
     out.push({
       date: iso,
@@ -98,29 +86,7 @@ function generateDays(): SimDay[] {
   return out;
 }
 
-const DAYS_90 = generateDays();
-
-/* ----- Pricing math ----- */
-
-const DOW_BASE_PRICE: Record<number, number> = {
-  0: 268, // Sun
-  1: 248, // Mon
-  2: 245, // Tue
-  3: 252, // Wed
-  4: 268, // Thu
-  5: 312, // Fri
-  6: 340, // Sat
-};
-
-const DOW_BASE_OCC: Record<number, number> = {
-  0: 0.62,
-  1: 0.58,
-  2: 0.56,
-  3: 0.6,
-  4: 0.66,
-  5: 0.78,
-  6: 0.84,
-};
+/* ----- Pricing math (matches Ampliphi engine direction) ----- */
 
 const MODE_PRICE_FACTOR: Record<StrategyModeId, number> = {
   maximize_revenue: 1.0,
@@ -133,53 +99,57 @@ const MODE_PRICE_FACTOR: Record<StrategyModeId, number> = {
 
 interface SimResult {
   suggestedPrice: number;
-  projectedOccupancy: number; // 0 → 1
+  projectedOccupancy: number;
   projectedRevenue: number;
   drivers: { label: string; sign: "up" | "down" | "neutral" }[];
 }
 
-function simulate(day: SimDay, config: StrategyConfig, totalRooms: number): SimResult {
-  // 1) Base price for the day
-  const basePrice = DOW_BASE_PRICE[day.dow] * day.seasonality * (1 + day.eventBoost * 0.6);
-  const baseOcc = Math.min(0.96, DOW_BASE_OCC[day.dow] + day.eventBoost * 0.5);
+function simulate(
+  day: SimDay,
+  config: StrategyConfig,
+  totalRooms: number,
+  dowBasePrice: number[],
+  dowBaseOcc: number[],
+  baseElasticity: number,
+): SimResult {
+  // 1) Base price for the day (real DB averages by DOW)
+  const basePrice = dowBasePrice[day.dow] * day.seasonality * (1 + day.eventBoost * 0.6);
+  const baseOcc   = Math.min(0.96, dowBaseOcc[day.dow] + day.eventBoost * 0.5);
 
   // 2) Strategy mode modifier
   const modeFactor = MODE_PRICE_FACTOR[config.modeId];
 
-  // 3) Goal-based adjustment (vs DEFAULTS)
+  // 3) Goal-based adjustment
   const revTargetDelta =
     (config.goals.monthlyRevenueTarget - DEFAULT_STRATEGY.goals.monthlyRevenueTarget) /
     DEFAULT_STRATEGY.goals.monthlyRevenueTarget;
   const occTargetDelta =
     (config.goals.targetOccupancy - DEFAULT_STRATEGY.goals.targetOccupancy) /
     DEFAULT_STRATEGY.goals.targetOccupancy;
-  // Higher revenue target → push price up; higher occ target → push price down
   const goalPriceMod = 1 + revTargetDelta * 0.35 - occTargetDelta * 0.45;
 
   // 4) Apply modifiers + clamp to user's floor/ceiling
   let price = basePrice * modeFactor * goalPriceMod;
   price = Math.max(config.goals.adrFloor, Math.min(config.goals.adrCeiling, price));
 
-  // 5) Occupancy response (price elasticity)
-  const priceDeltaPct = (price - basePrice) / basePrice;
-  const elasticity = -0.45;
-  let occ = baseOcc * (1 + elasticity * priceDeltaPct);
-  occ = Math.max(0.32, Math.min(0.98, occ));
+  // 5) Occupancy response — uses DB base_elasticity
+  const priceDeltaPct = basePrice > 0 ? (price - basePrice) / basePrice : 0;
+  let occ = baseOcc * (1 + baseElasticity * priceDeltaPct);
+  occ = Math.max(0.05, Math.min(0.98, occ));
 
   // 6) Revenue
   const revenue = price * occ * totalRooms;
 
-  // 7) Drivers (top 3 reasons)
+  // 7) Drivers
   const drivers: SimResult["drivers"] = [];
-  if (day.eventBoost > 0)
+  if (day.eventBoost > 0 && day.eventName)
     drivers.push({ label: `${day.eventName} event boost`, sign: "up" });
   if (day.isWeekend) drivers.push({ label: `${day.dowName} DOW premium`, sign: "up" });
   if (config.modeId !== "maximize_revenue") {
     const mode = getMode(config.modeId);
     drivers.push({
       label: `${mode.label} mode`,
-      sign:
-        modeFactor > 1 ? "up" : modeFactor < 1 ? "down" : "neutral",
+      sign: modeFactor > 1 ? "up" : modeFactor < 1 ? "down" : "neutral",
     });
   }
   if (Math.abs(revTargetDelta) > 0.02)
@@ -205,6 +175,12 @@ function simulate(day: SimDay, config: StrategyConfig, totalRooms: number): SimR
   };
 }
 
+const fetcher = (url: string) =>
+  fetch(url).then((r) => {
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  });
+
 /* ============================================================
  * Component
  * ============================================================ */
@@ -212,40 +188,50 @@ function simulate(day: SimDay, config: StrategyConfig, totalRooms: number): SimR
 export function DaySimulator() {
   const { config } = useStrategy();
   const { activePropertyId, activeHotel } = usePortfolio();
-  const totalRooms = 218; // default; room count derived separately
 
-  // Default selection: the first Saturday in the next 14 days (good demo)
+  // Fetch live simulator config from DB
+  const { data: cfgRes, isLoading } = useSWR<{ ok: boolean; data: SimulatorConfigData }>(
+    activePropertyId ? `/api/hotels/${activePropertyId}/strategy/simulator-config` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 300_000 }
+  );
+
+  const cfg = cfgRes?.ok ? cfgRes.data : null;
+
+  const days = React.useMemo(
+    () => (cfg ? generateDays(cfg.todayIso, cfg.events) : []),
+    [cfg]
+  );
+
+  // Default selection: the first Saturday in the next 14 days
   const defaultIdx = React.useMemo(() => {
-    const idx = DAYS_90.findIndex((d) => d.dow === 6 && DAYS_90.indexOf(d) < 14);
+    if (!days.length) return 0;
+    const idx = days.findIndex((d, i) => d.dow === 6 && i < 14);
     return idx === -1 ? 0 : idx;
-  }, []);
-  const [selectedIdx, setSelectedIdx] = React.useState(defaultIdx);
-  const day = DAYS_90[selectedIdx];
+  }, [days]);
 
-  // Compute baseline (defaults) vs new (current saved config)
-  const baseline = React.useMemo(
-    () => simulate(day, DEFAULT_STRATEGY, totalRooms),
-    [day, totalRooms]
-  );
-  const newResult = React.useMemo(
-    () => simulate(day, config, totalRooms),
-    [day, config, totalRooms]
-  );
+  const [selectedIdx, setSelectedIdx] = React.useState(0);
+  React.useEffect(() => { setSelectedIdx(defaultIdx); }, [defaultIdx]);
 
-  const priceDelta = newResult.suggestedPrice - baseline.suggestedPrice;
-  const priceDeltaPct = (priceDelta / baseline.suggestedPrice) * 100;
-  const occDeltaPp = (newResult.projectedOccupancy - baseline.projectedOccupancy) * 100;
-  const revDelta = newResult.projectedRevenue - baseline.projectedRevenue;
-  const revDeltaPct = (revDelta / baseline.projectedRevenue) * 100;
+  const day = days[selectedIdx];
 
-  // Scroll the chip strip
+  // Compute baseline vs new config
+  const baseline = React.useMemo(() => {
+    if (!day || !cfg) return null;
+    return simulate(day, DEFAULT_STRATEGY, cfg.totalRooms, cfg.dowBasePrice, cfg.dowBaseOccupancy, cfg.baseElasticity);
+  }, [day, cfg]);
+  const newResult = React.useMemo(() => {
+    if (!day || !cfg) return null;
+    return simulate(day, config, cfg.totalRooms, cfg.dowBasePrice, cfg.dowBaseOccupancy, cfg.baseElasticity);
+  }, [day, cfg, config]);
+
+  // Scroller
   const scrollerRef = React.useRef<HTMLDivElement>(null);
   const scrollBy = (dir: 1 | -1) => {
     if (!scrollerRef.current) return;
     scrollerRef.current.scrollBy({ left: dir * 360, behavior: "smooth" });
   };
 
-  // Auto-scroll the selected chip into view on first paint
   React.useEffect(() => {
     const el = scrollerRef.current?.querySelector<HTMLButtonElement>(
       `[data-day-idx="${selectedIdx}"]`
@@ -254,20 +240,29 @@ export function DaySimulator() {
       const offset = el.offsetLeft - scrollerRef.current.clientWidth / 2 + el.clientWidth / 2;
       scrollerRef.current.scrollTo({ left: offset, behavior: "auto" });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [selectedIdx, days.length]);
+
+  // Quick picks — derived from real events
+  const topEvent = cfg?.events
+    ?.filter((e) => e.boost >= 0.15)
+    ?.sort((a, b) => b.boost - a.boost)[0];
 
   const quickPicks: { label: string; predicate: (d: SimDay, i: number) => boolean }[] = [
     { label: "This Saturday", predicate: (d, i) => d.dow === 6 && i < 14 },
-    { label: "Memorial Day weekend", predicate: (d) => d.date === "2026-05-24" },
-    { label: "Coldplay night (May 30)", predicate: (d) => d.date === "2026-05-30" },
+    ...(topEvent
+      ? [
+          {
+            label: `Top event: ${topEvent.name.slice(0, 28)}${topEvent.name.length > 28 ? "…" : ""}`,
+            predicate: (d: SimDay) => d.date === topEvent.date,
+          },
+        ]
+      : []),
   ];
 
   const pickQuick = (predicate: (d: SimDay, i: number) => boolean) => {
-    const idx = DAYS_90.findIndex(predicate);
+    const idx = days.findIndex(predicate);
     if (idx >= 0) {
       setSelectedIdx(idx);
-      // Center the scroller on the picked chip
       requestAnimationFrame(() => {
         const el = scrollerRef.current?.querySelector<HTMLButtonElement>(
           `[data-day-idx="${idx}"]`
@@ -281,6 +276,31 @@ export function DaySimulator() {
   };
 
   const activeMode = getMode(config.modeId);
+
+  if (isLoading || !cfg || !day || !baseline || !newResult) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-brand-500" />
+            What does this do? — Day simulator
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex h-40 items-center justify-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading simulator config from live DB…
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const priceDelta    = newResult.suggestedPrice - baseline.suggestedPrice;
+  const priceDeltaPct = baseline.suggestedPrice > 0 ? (priceDelta / baseline.suggestedPrice) * 100 : 0;
+  const occDeltaPp    = (newResult.projectedOccupancy - baseline.projectedOccupancy) * 100;
+  const revDelta      = newResult.projectedRevenue - baseline.projectedRevenue;
+  const revDeltaPct   = baseline.projectedRevenue > 0 ? (revDelta / baseline.projectedRevenue) * 100 : 0;
 
   return (
     <Card>
@@ -346,7 +366,7 @@ export function DaySimulator() {
             style={{ scrollbarWidth: "none" }}
           >
             <div className="flex gap-1.5">
-              {DAYS_90.map((d, i) => (
+              {days.map((d, i) => (
                 <DayChip
                   key={d.date}
                   day={d}
@@ -377,7 +397,7 @@ export function DaySimulator() {
               </div>
               <div className="min-w-0">
                 <div className="text-base font-semibold leading-tight">
-                  {day.dowName} · {day.monthName} {day.dayOfMonth}, 2026
+                  {day.dowName} · {day.monthName} {day.dayOfMonth}, {day.date.slice(0, 4)}
                 </div>
                 <div className="text-[11px] text-muted-foreground leading-tight mt-0.5">
                   {day.tag ?? (day.isWeekend ? "Weekend night" : "Midweek night")}
@@ -385,7 +405,7 @@ export function DaySimulator() {
                     <>
                       <span className="mx-1.5">·</span>
                       <span>
-                        {activeHotel?.name ?? activePropertyId} · {totalRooms} rooms
+                        {activeHotel?.name ?? activePropertyId} · {cfg.totalRooms} rooms · elasticity {cfg.baseElasticity}
                       </span>
                     </>
                   )}
@@ -433,9 +453,9 @@ export function DaySimulator() {
         </AnimatePresence>
 
         <div className="text-[10px] text-muted-foreground leading-snug">
-          Simulation uses your current saved strategy mode and goals. Numbers projected from
-          historical demand curves, day-of-week elasticity, and known events on the date. Actual
-          results vary with pickup, comp-set moves, and channel mix.
+          Live · base prices & occupancy from <code className="font-mono">daily_inventory</code> (90-day DOW avg) ·
+          elasticity from <code className="font-mono">pricing_configuration.base_elasticity</code> ·
+          events from <code className="font-mono">events</code> table · floor/ceiling from your saved strategy goals.
         </div>
       </CardContent>
     </Card>
