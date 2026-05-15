@@ -9,7 +9,7 @@ import { useStrategy } from "@/components/strategy-provider";
 import { usePortfolio } from "@/components/portfolio-provider";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { HotelRow } from "@/lib/queries/hotels";
-import type { StrategyPerformanceRow } from "@/lib/queries/strategy";
+import type { StrategyPerformanceRow, PricingConfigRow } from "@/lib/queries/strategy";
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => {
@@ -19,9 +19,12 @@ const fetcher = (url: string) =>
 
 export function StrategyPerformance({
   liveKpis,
+  pricingConfig,
 }: {
   /** Live hotel KPIs from DB. Used as fallback for MTD occupancy/ADR. */
   liveKpis?: HotelRow | null;
+  /** Live pricing config from DB. When provided, overrides ADR floor/ceiling from strategy goals. */
+  pricingConfig?: PricingConfigRow | null;
 }) {
   const { config } = useStrategy();
   const { activePropertyId } = usePortfolio();
@@ -49,6 +52,10 @@ export function StrategyPerformance({
 
   const g = config.goals;
 
+  // Prefer real DB-configured floor/ceiling (truth), fall back to user strategy goals
+  const adrFloor   = pricingConfig?.floorPrice   ?? g.adrFloor;
+  const adrCeiling = pricingConfig?.ceilingPrice ?? g.adrCeiling;
+
   const revenuePct = g.monthlyRevenueTarget > 0
     ? Math.min(100, (eomProjection / g.monthlyRevenueTarget) * 100)
     : 0;
@@ -58,9 +65,9 @@ export function StrategyPerformance({
   const directPct = directShare != null && g.directBookingTarget > 0
     ? Math.min(100, (directShare / g.directBookingTarget) * 100)
     : null;
-  const adrInRange = currentAdr >= g.adrFloor && currentAdr <= g.adrCeiling;
-  const adrPosition = g.adrCeiling > g.adrFloor
-    ? ((currentAdr - g.adrFloor) / (g.adrCeiling - g.adrFloor)) * 100
+  const adrInRange = currentAdr >= adrFloor && currentAdr <= adrCeiling;
+  const adrPosition = adrCeiling > adrFloor
+    ? ((currentAdr - adrFloor) / (adrCeiling - adrFloor)) * 100
     : 0;
 
   return (
@@ -96,8 +103,8 @@ export function StrategyPerformance({
               />
               <AdrRange
                 currentAdr={currentAdr}
-                floor={g.adrFloor}
-                ceiling={g.adrCeiling}
+                floor={adrFloor}
+                ceiling={adrCeiling}
                 position={adrPosition}
                 inRange={adrInRange}
               />

@@ -93,7 +93,7 @@ export function PropertyStrategy() {
           <StrategyImpactExplainer />
         </div>
       </div>
-      <StrategyPerformance liveKpis={activeHotel} />
+      <StrategyPerformance liveKpis={activeHotel} pricingConfig={pricingConfig} />
       <DaySimulator />
     </div>
   );
