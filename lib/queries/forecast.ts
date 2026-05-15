@@ -130,8 +130,8 @@ export async function getPickupCurveData(hotelId: string): Promise<PickupCurveDa
     // Find next Saturday (or Friday) 10–30 days out
     const targetRows = await sql<{ target_date: string; days_out: string }>`
       SELECT
-        d::text AS target_date,
-        (d - CURRENT_DATE)::text AS days_out
+        TO_CHAR(d, 'YYYY-MM-DD') AS target_date,
+        (d::date - CURRENT_DATE)::text AS days_out
       FROM generate_series(
         CURRENT_DATE + INTERVAL '10 days',
         CURRENT_DATE + INTERVAL '30 days',
@@ -142,10 +142,10 @@ export async function getPickupCurveData(hotelId: string): Promise<PickupCurveDa
     `;
 
     if (!targetRows.length) return null;
-    const targetDate = targetRows[0].target_date;
+    const targetDate = targetRows[0].target_date;   // now always "YYYY-MM-DD"
     const daysUntilStay = Number(targetRows[0].days_out);
 
-    const stlyDate = new Date(targetDate);
+    const stlyDate = new Date(targetDate + "T00:00:00Z");
     stlyDate.setDate(stlyDate.getDate() - 364);
     const stlyDateStr = stlyDate.toISOString().slice(0, 10);
 

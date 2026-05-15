@@ -43,7 +43,7 @@ export function PickupCurve() {
 
   // Format target date nicely
   const targetLabel = d
-    ? new Date(d.targetDate + "T00:00:00Z").toLocaleDateString("en-US", {
+    ? new Date(d.targetDate.slice(0, 10) + "T00:00:00Z").toLocaleDateString("en-US", {
         weekday: "short",
         month: "short",
         day: "numeric",
